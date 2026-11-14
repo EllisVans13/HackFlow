@@ -30,6 +30,8 @@ class Hackathon(db.Model):
     start_at = db.Column(db.DateTime, nullable=False)
     end_at = db.Column(db.DateTime, nullable=False)
     registration_deadline = db.Column(db.DateTime, nullable=False)
+    team_deadline = db.Column(db.DateTime)
+    demo_key = db.Column(db.String(80), unique=True)
     submission_deadline = db.Column(db.DateTime, nullable=False)
     team_size = db.Column(db.Integer, nullable=False, default=5)
     closed = db.Column(db.Boolean, default=True, nullable=False)

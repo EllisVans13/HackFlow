@@ -31,11 +31,19 @@ def register_commands(app):
         if not u or len(password)<12: raise click.ClickException('Аккаунт не найден или пароль короче 12 символов.')
         u.password_hash=generate_password_hash(password); db.session.commit(); click.echo('Пароль изменён.')
 
+    @app.cli.command('seed-showcase')
+    @click.option('--password',envvar='DEMO_PASSWORD',required=True)
+    def seed_showcase(password):
+        from .demo import enrich
+        enrich(password); click.echo('Демоданные добавлены.')
+
     @app.cli.command('seed-demo')
     @click.option('--password',envvar='DEMO_PASSWORD',required=True,help='Демонстрационный пароль, минимум 12 символов.')
     def seed_demo(password):
         """Предзаполнить демонстрационный хакатон. Не создаёт администратора."""
-        seed(password); click.echo('Демо готово: participant, captain, organizer, jury @hackflow.test. Администратор: flask init-admin.')
+        if not Hackathon.query.first(): seed(password)
+        from .demo import enrich
+        enrich(password); click.echo('Демо готово: participant, captain, organizer, jury @hackflow.test. Администратор: flask init-admin.')
 
 def seed(password):
     if len(password)<12: raise click.ClickException('DEMO_PASSWORD должен содержать минимум 12 символов.')

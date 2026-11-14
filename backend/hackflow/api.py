@@ -47,7 +47,14 @@ def get(model,id): return db.get_or_404(model,id)
 def serialize(obj,fields):
     return {key: getattr(obj,key).isoformat()+'Z' if isinstance(getattr(obj,key),datetime) else getattr(obj,key) for key in fields.split()}
 
-def user_data(u): return serialize(u,'id email nickname role github telegram avatar theme created_at blocked')
+def participant_account(u):
+    return u.role=='participant' and not EventRole.query.filter(EventRole.user_id==u.id,EventRole.role.in_(['organizer','jury'])).first()
+
+def require_participant(u=None):
+    if not participant_account(u or current_user): abort(403,'Участие доступно только аккаунтам участников.')
+
+def user_data(u):
+    d=serialize(u,'id email nickname role github telegram avatar theme created_at blocked'); d['participant']=participant_account(u); return d
 
 def event_role(hid,role): return EventRole.query.filter_by(user_id=current_user.id,hackathon_id=hid,role=role).first() is not None
 
@@ -59,7 +66,7 @@ def require_organizer(hid):
 def require_admin():
     if current_user.role!='admin': abort(403,'Требуются права администратора.')
 
-def admitted(h): return not h.closed or organizer(h.id) or event_role(h.id,'jury') or Admission.query.filter_by(hackathon_id=h.id,email=current_user.email).first() is not None
+def admitted(h): return organizer(h.id) or event_role(h.id,'jury') or Admission.query.filter_by(hackathon_id=h.id,email=current_user.email).first() is not None
 
 def require_admission(h):
     if not admitted(h): abort(403,'Нет допуска к закрытому хакатону.')
@@ -69,11 +76,13 @@ def member_team(hid,uid=None):
     return db.session.get(Team,m.team_id) if m else None
 
 def team_access(t,write=False):
-    if Membership.query.filter_by(team_id=t.id,user_id=current_user.id).first(): return
+    if write: require_participant()
+    if participant_account(current_user) and Membership.query.filter_by(team_id=t.id,user_id=current_user.id).first(): return
     if not write and organizer(t.hackathon_id): return
     abort(403,'Нет доступа к пространству этой команды.')
 
 def captain(t):
+    require_participant()
     if t.captain_id!=current_user.id: abort(403,'Действие доступно капитану команды.')
 
 def activity(action): db.session.add(Activity(user_id=current_user.id,action=action))
@@ -93,11 +102,12 @@ def notify_event(hid,title,message=''):
 def commit(): db.session.commit()
 
 def add_member(t,u):
+    require_participant(u)
     h=get(Hackathon,t.hackathon_id)
-    if h.closed and not Admission.query.filter_by(hackathon_id=h.id,email=u.email).first(): abort(403,'Участник не допущен.')
+    if True and not Admission.query.filter_by(hackathon_id=h.id,email=u.email).first(): abort(403,'Участник не допущен.')
     if member_team(h.id,u.id): abort(409,'Участник уже состоит в команде этого хакатона.')
     if Membership.query.filter_by(team_id=t.id).count()>=h.team_size: abort(409,'Команда заполнена.')
-    if now()>h.registration_deadline: abort(403,'Приём участников завершён.')
+    if now()>(h.team_deadline or h.registration_deadline): abort(403,'Приём участников завершён.')
     db.session.add(Membership(team_id=t.id,hackathon_id=h.id,user_id=u.id))
     notify(u.id,'Вы добавлены в команду',t.name)
 
@@ -112,7 +122,7 @@ def team_data(t):
     return data
 
 def h_data(h,full=False):
-    d=serialize(h,'id title description cover start_at end_at registration_deadline submission_deadline team_size closed status results_published peer_published tie_rule')
+    d=serialize(h,'id title description cover start_at end_at registration_deadline team_deadline submission_deadline team_size closed status results_published peer_published tie_rule')
     if current_user.is_authenticated:
         d['admitted']=admitted(h); d['organizer']=organizer(h.id); d['jury']=event_role(h.id,'jury'); t=member_team(h.id); d['team_id']=t.id if t else None
     if full: d['rules']=h.rules
@@ -193,6 +203,8 @@ def create_hackathon():
     if current_user.role not in ('organizer','admin'): abort(403,'Администратор должен назначить вас организатором.')
     d=body(); h=Hackathon(title=text(d,'title',200),description=text(d,'description'),rules=text(d,'rules',10000,False),start_at=date(d.get('start_at')),end_at=date(d.get('end_at')),registration_deadline=date(d.get('registration_deadline')),submission_deadline=date(d.get('submission_deadline')),team_size=integer(d.get('team_size',5)),closed=bool(d.get('closed',True)),status='upcoming')
     if not h.registration_deadline<=h.submission_deadline<=h.end_at or h.start_at>=h.end_at: abort(400,'Проверьте порядок сроков.')
+    h.team_deadline=date(d.get('team_deadline') or d.get('registration_deadline'))
+    if not h.registration_deadline<=h.team_deadline<=h.submission_deadline: abort(400,'Проверьте сроки регистрации, команд и сдачи.')
     db.session.add(h); db.session.flush(); db.session.add(EventRole(user_id=current_user.id,hackathon_id=h.id,role='organizer'))
     for title,maximum in [('Функциональность',30),('Оригинальность',20),('Техническая реализация',20),('Дизайн и удобство',15),('Презентация и защита',15)]: db.session.add(Criterion(hackathon_id=h.id,title=title,maximum=maximum))
     audit('hackathon.create',{'id':h.id}); commit(); return jsonify(hackathon=h_data(h,True)),201
@@ -203,9 +215,9 @@ def edit_hackathon(hid):
     h=get(Hackathon,hid); require_organizer(hid); d=body()
     for field in ['title','description','rules']:
         if field in d: setattr(h,field,text(d,field,10000))
-    for field in ['start_at','end_at','registration_deadline','submission_deadline']:
-        if field in d: setattr(h,field,date(d[field]))
-    if h.start_at>=h.end_at or h.submission_deadline>h.end_at: abort(400,'Проверьте порядок дат.')
+    for field in ['start_at','end_at','registration_deadline','team_deadline','submission_deadline']:
+        if field in d and d[field]: setattr(h,field,date(d[field]))
+    if not h.registration_deadline <= (h.team_deadline or h.registration_deadline) <= h.submission_deadline <= h.end_at or h.start_at>=h.end_at: abort(400,'Проверьте порядок дат.')
     if 'status' in d:
         if d['status'] not in ['upcoming','active','review','completed']: abort(400,'Некорректный статус.')
         h.status=d['status']
@@ -235,10 +247,11 @@ def teams(hid):
 @api.post('/hackathons/<int:hid>/teams')
 @login_required
 def create_team(hid):
+    require_participant()
     h=get(Hackathon,hid); require_admission(h); d=body()
-    if now()>h.registration_deadline: abort(403,'Регистрация команд завершена.')
+    if now()>(h.team_deadline or h.registration_deadline): abort(403,'Регистрация команд завершена.')
     uid=integer(d.get('captain_id',current_user.id))
-    if uid!=current_user.id: require_organizer(hid)
+    if uid!=current_user.id: abort(403,'Создайте команду от своего имени.')
     u=get(User,uid)
     # Lock participant to serialize team membership/capacity mutations.
     db.session.execute(db.select(User).where(User.id==uid).with_for_update())
@@ -249,6 +262,7 @@ def create_team(hid):
 @api.post('/hackathons/<int:hid>/join')
 @login_required
 def join_code(hid):
+    require_participant()
     require_admission(get(Hackathon,hid)); d=body()
     t=Team.query.filter_by(hackathon_id=hid,code=text(d,'code',32)).with_for_update().first()
     if not t: abort(404,'Команда с таким кодом не найдена.')
@@ -276,8 +290,9 @@ def delete_team(tid):
 @api.post('/teams/<int:tid>/requests')
 @login_required
 def request_join(tid):
+    require_participant()
     t=get(Team,tid); h=get(Hackathon,t.hackathon_id); require_admission(h)
-    if not t.open or now()>h.registration_deadline: abort(403,'Команда не принимает заявки.')
+    if not t.open or now()>(h.team_deadline or h.registration_deadline): abort(403,'Команда не принимает заявки.')
     if member_team(h.id): abort(409,'Вы уже состоите в команде.')
     db.session.add(JoinRequest(team_id=tid,user_id=current_user.id)); notify(t.captain_id,'Новая заявка в команду',current_user.nickname); commit(); return jsonify(ok=True),201
 
@@ -356,7 +371,7 @@ def messages(tid):
         activity('message.send'); commit()
     after=integer(request.args.get('after',0))
     rows=Message.query.filter(Message.team_id==tid,Message.channel==channel,Message.id>after).order_by(Message.id.desc()).limit(100).all()[::-1]
-    return jsonify(items=[dict(serialize(m,'id author_id text created_at read_at'),author=get(User,m.author_id).nickname) for m in rows])
+    return jsonify(items=[dict(serialize(m,'id author_id text created_at read_at'),author=get(User,m.author_id).nickname,avatar=get(User,m.author_id).avatar) for m in rows])
 
 @api.post('/teams/<int:tid>/messages/read')
 @login_required
@@ -707,12 +722,13 @@ def read_notifications(): Notification.query.filter_by(user_id=current_user.id,r
 @api.get('/profile')
 @login_required
 def profile():
+    if not participant_account(current_user): return jsonify(user=user_data(current_user),staff=True,history=[],events=[])
     results=PersonalResult.query.filter_by(user_id=current_user.id).all()
     activities=Activity.query.filter(Activity.user_id==current_user.id,Activity.created_at>=now()-timedelta(days=365)).all(); counts={}
     for a in activities:
         key=a.created_at.date().isoformat(); counts[key]=counts.get(key,0)+1
     history=[dict(serialize(r,'hackathon_id team_name case_title score place'),title=get(Hackathon,r.hackathon_id).title) for r in results]
-    return jsonify(user=user_data(current_user),rating=round(sum(r.score for r in results)/len(results),2) if results else 0,participations=len(results),wins=sum(r.place==1 for r in results),history=history,activity=counts,events=[h_data(h) for h in Hackathon.query.all() if member_team(h.id)])
+    return jsonify(level=experience(current_user.id),user=user_data(current_user),rating=round(sum(r.score for r in results)/len(results),2) if results else 0,participations=len(results),wins=sum(r.place==1 for r in results),history=history,activity=counts,events=[h_data(h) for h in Hackathon.query.all() if member_team(h.id)])
 
 @api.patch('/profile')
 @login_required
@@ -729,11 +745,8 @@ def edit_profile():
 @api.get('/ratings')
 @login_required
 def personal_ratings():
-    rows=[]
-    for u in User.query.all():
-        rs=PersonalResult.query.filter_by(user_id=u.id).all()
-        if rs: rows.append({'nickname':u.nickname,'rating':round(sum(r.score for r in rs)/len(rs),2),'completed':len(rs),'wins':sum(r.place==1 for r in rs)})
-    rows.sort(key=lambda r:(-r['rating'],-r['completed'],-r['wins'],r['nickname']))
+    rows=[dict(nickname=u.nickname,**experience(u.id)) for u in User.query.all() if participant_account(u)]
+    rows.sort(key=lambda r:(-r['xp'],r['nickname']))
     return jsonify(items=rows)
 
 @api.get('/hackathons/<int:hid>/analytics')
@@ -800,7 +813,7 @@ def consultation(tid):
         if not assignment and not organizer(t.hackathon_id): abort(403,'Вы не назначены экспертом этой команды.')
         db.session.add(ConsultationComment(team_id=tid,author_id=current_user.id,text=text(body(),'text',5000)))
         notify_team(t,'Новые рекомендации эксперта'); activity('expert.feedback'); commit()
-    return jsonify(team={'id':t.id,'name':t.name,'case_id':t.case_id},experts=[{'id':r.user_id,'nickname':get(User,r.user_id).nickname} for r in ConsultationAssignment.query.filter_by(team_id=tid)],items=[dict(serialize(m,'id text created_at'),author=get(User,m.author_id).nickname) for m in ConsultationComment.query.filter_by(team_id=tid)])
+    return jsonify(team={'id':t.id,'name':t.name,'case_id':t.case_id},experts=[{'id':r.user_id,'nickname':get(User,r.user_id).nickname} for r in ConsultationAssignment.query.filter_by(team_id=tid)],items=[dict(serialize(m,'id text created_at'),author=get(User,m.author_id).nickname,avatar=get(User,m.author_id).avatar) for m in ConsultationComment.query.filter_by(team_id=tid)])
 
 @api.post('/teams/<int:tid>/consultation/assign')
 @login_required
@@ -863,7 +876,36 @@ def learning_analytics(hid):
     material_ids=[m.id for m in Material.query.filter_by(hackathon_id=hid)]
     emails=[a.email for a in Admission.query.filter_by(hackathon_id=hid)]
     rows=[]
-    for u in User.query.filter(User.email.in_(emails)):
+    for u in User.query.filter(User.email.in_(emails)).order_by(User.id):
         count=LearningProgress.query.filter(LearningProgress.user_id==u.id,LearningProgress.material_id.in_(material_ids)).count() if material_ids else 0
         rows.append({'nickname':u.nickname,'completed':count,'total':len(material_ids),'percent':round(count/len(material_ids)*100) if material_ids else 0})
+    return jsonify(items=rows)
+
+
+def experience(uid):
+    rows=PersonalResult.query.join(Hackathon,PersonalResult.hackathon_id==Hackathon.id).filter(PersonalResult.user_id==uid,Hackathon.results_published.is_(True),Hackathon.status=='completed').all()
+    xp=sum(round(r.score*10) for r in rows)
+    thresholds=[0,1000,2500,5000,10000,20000]
+    index=max(i for i,t in enumerate(thresholds) if xp>=t)
+    lower=thresholds[index]; upper=thresholds[index+1] if index+1<len(thresholds) else None
+    return {'level':index+1,'xp':xp,'next':upper,'progress':round(100*(xp-lower)/(upper-lower)) if upper else 100}
+
+@api.post('/hackathons/<int:hid>/register')
+@login_required
+def register_event(hid):
+    require_participant(); h=get(Hackathon,hid)
+    if h.status not in ['upcoming','active'] or now()>h.registration_deadline: abort(403,'Регистрация закрыта.')
+    if not Admission.query.filter_by(hackathon_id=hid,email=current_user.email).first():
+        db.session.add(Admission(hackathon_id=hid,email=current_user.email)); activity('hackathon.register')
+    commit(); return jsonify(hackathon=h_data(h,True))
+
+@api.get('/hackathons/<int:hid>/deadlines')
+@login_required
+def deadlines(hid):
+    h=get(Hackathon,hid); require_admission(h)
+    rows=[]
+    for label,dt in [('Регистрация',h.registration_deadline),('Формирование команд',h.team_deadline or h.registration_deadline),('Сдача проекта',h.submission_deadline)]:
+        seconds=int((dt-now()).total_seconds())
+        status='Завершён' if h.status=='completed' else 'Истёк' if seconds<0 else 'Скоро' if seconds<86400 else 'Впереди'
+        rows.append({'title':label,'at':dt.isoformat()+'Z','status':status,'seconds':max(0,seconds)})
     return jsonify(items=rows)
