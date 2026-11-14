@@ -14,12 +14,15 @@ class User(UserMixin, db.Model):
     nickname = db.Column(db.String(64), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='participant')
+    is_owner = db.Column(db.Boolean,nullable=False,default=False)
     blocked = db.Column(db.Boolean, default=False, nullable=False)
     github = db.Column(db.String(300), default='')
     telegram = db.Column(db.String(100), default='')
     avatar = db.Column(db.String(300), default='')
     theme = db.Column(db.String(20), default='yellow')
     created_at = db.Column(db.DateTime, default=now, nullable=False)
+
+    __table_args__ = (db.Index('uq_platform_owner','is_owner',unique=True,postgresql_where=db.text('is_owner'),sqlite_where=db.text('is_owner')),CheckConstraint("NOT is_owner OR (role='admin' AND NOT blocked)",name='owner_is_active_admin'))
 
 class Hackathon(db.Model):
     id = db.Column(db.Integer, primary_key=True)

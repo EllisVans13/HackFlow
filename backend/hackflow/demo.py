@@ -21,7 +21,7 @@ def enrich(password):
     if not User.query.filter_by(role='admin').first():
         if User.query.filter_by(email='admin@hackflow.test').first():
             raise ValueError('Email admin@hackflow.test уже занят; создайте администратора через init-admin.')
-        db.session.add(User(email='admin@hackflow.test',nickname='Главный администратор',role='admin',password_hash=generate_password_hash(password)))
+        db.session.add(User(email='admin@hackflow.test',nickname='Главный администратор',role='admin',is_owner=True,password_hash=generate_password_hash(password)))
         db.session.flush()
     us=[]
     for name in ['participant','captain','organizer','jury','builder']:

@@ -19,7 +19,7 @@ def register_commands(app):
         """Создать первого администратора локально, без открытого API."""
         if User.query.filter_by(role='admin').first(): raise click.ClickException('Администратор уже существует.')
         if len(password)<12: raise click.ClickException('Пароль — минимум 12 символов.')
-        db.session.add(User(email=email.lower(),nickname=nickname,role='admin',password_hash=generate_password_hash(password)))
+        db.session.add(User(email=email.lower(),nickname=nickname,role='admin',is_owner=True,password_hash=generate_password_hash(password)))
         db.session.commit(); click.echo('Администратор создан.')
 
     @app.cli.command('reset-password')

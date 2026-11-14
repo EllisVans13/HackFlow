@@ -54,7 +54,7 @@ def require_participant(u=None):
     if not participant_account(u or current_user): abort(403,'Участие доступно только аккаунтам участников.')
 
 def user_data(u):
-    d=serialize(u,'id email nickname role github telegram avatar theme created_at blocked'); d['participant']=participant_account(u); return d
+    d=serialize(u,'id email nickname role is_owner github telegram avatar theme created_at blocked'); d['participant']=participant_account(u); return d
 
 def event_role(hid,role): return EventRole.query.filter_by(user_id=current_user.id,hackathon_id=hid,role=role).first() is not None
 
@@ -781,24 +781,27 @@ def admin_users():
 @api.patch('/admin/users/<int:uid>')
 @login_required
 def admin_update(uid):
-    require_admin(); u=get(User,uid); d=body()
-    if u.role=='admin' and u.id!=current_user.id: abort(403,'Административные аккаунты нельзя изменять через список пользователей.')
+    require_admin(); u=User.query.filter_by(id=uid).with_for_update().first_or_404(); d=body()
+    if u.is_owner: abort(403,'Права главного администратора изменяются только передачей владения.')
     if u.id==current_user.id: abort(403,'Изменение собственных административных прав запрещено.')
     if 'role' in d:
-        if d['role'] not in ['participant','organizer']: abort(400,'Администраторы создаются только CLI-командой.')
+        if d['role'] not in ['participant','organizer','admin','jury']: abort(400,'Неизвестная роль.')
         u.role=d['role']
-        if d['role']=='participant': EventRole.query.filter_by(user_id=uid,role='organizer').delete()
+        if d['role']!='organizer': EventRole.query.filter_by(user_id=uid,role='organizer').delete()
+        if d['role'] not in ['participant','jury']: EventRole.query.filter_by(user_id=uid,role='jury').delete()
+        if d['role']=='participant': EventRole.query.filter_by(user_id=uid,role='jury').delete()
     if 'blocked' in d:
         if not isinstance(d['blocked'],bool): abort(400,'Ожидается логический статус блокировки.')
         u.blocked=d['blocked']
     if 'hackathon_id' in d:
         hid=integer(d['hackathon_id']); get(Hackathon,hid)
-        if u.role!='organizer': abort(400,'Сначала назначьте пользователя организатором.')
-        assignment=EventRole.query.filter_by(user_id=uid,hackathon_id=hid,role='organizer').first()
+        event_kind=d.get('event_role','organizer')
+        if event_kind not in ['organizer','jury'] or u.role!=event_kind: abort(400,'Роль аккаунта должна соответствовать назначению.')
+        assignment=EventRole.query.filter_by(user_id=uid,hackathon_id=hid,role=event_kind).first()
         if d.get('assign',True):
-            if not assignment: db.session.add(EventRole(user_id=uid,hackathon_id=hid,role='organizer'))
+            if not assignment: db.session.add(EventRole(user_id=uid,hackathon_id=hid,role=event_kind))
         elif assignment: db.session.delete(assignment)
-    audit('user.update',{'user':uid,'changes':{k:d[k] for k in ['role','blocked','hackathon_id','assign'] if k in d}}); commit(); return jsonify(user=user_data(u))
+    audit('user.update',{'user':uid,'changes':{k:d[k] for k in ['role','blocked','hackathon_id','assign','event_role'] if k in d}}); commit(); return jsonify(user=user_data(u))
 
 @api.get('/admin/audit')
 @login_required
@@ -997,3 +1000,28 @@ def review_hackathon(hid):
     h.difficulty=difficulty;h.approval=decision;h.review_comment=text(d,'comment',5000,False)
     for r in EventRole.query.filter_by(hackathon_id=hid,role='organizer'):notify(r.user_id,'Решение по заявке хакатона',h.title+' · '+decision+' · '+h.review_comment)
     audit('hackathon.review',{'id':hid,'difficulty':difficulty,'approval':decision});commit();return jsonify(hackathon=h_data(h,True))
+
+
+@api.post('/admin/ownership')
+@login_required
+def transfer_ownership():
+    require_admin()
+    users=User.query.order_by(User.id).populate_existing().with_for_update().all()
+    owner=next((u for u in users if u.id==current_user.id),None)
+    if not owner or not owner.is_owner:abort(403,'Только главный администратор передаёт владение.')
+    uid=integer(body().get('user_id'));target=next((u for u in users if u.id==uid),None)
+    if not target or target.id==owner.id or target.role!='admin' or target.blocked:abort(400,'Выберите другого активного администратора.')
+    owner.is_owner=False;db.session.flush();target.is_owner=True
+    audit('ownership.transfer',{'from':owner.id,'to':target.id});notify(target.id,'Вам переданы права главного администратора');commit()
+    return jsonify(user=user_data(owner))
+
+@api.post('/hackathons/<int:hid>/jury-members')
+@login_required
+def appoint_jury(hid):
+    require_organizer(hid);get(Hackathon,hid)
+    email=text(body(),'email',254).lower();u=User.query.filter_by(email=email).first()
+    if not u:abort(404,'Пользователь должен сначала зарегистрироваться.')
+    if u.blocked or u.role not in ['participant','jury'] or Membership.query.filter_by(user_id=u.id).first():abort(409,'У этого пользователя несовместимые права или он состоит в команде.')
+    if not EventRole.query.filter_by(user_id=u.id,hackathon_id=hid,role='jury').first():
+        db.session.add(EventRole(user_id=u.id,hackathon_id=hid,role='jury'));notify(u.id,'Вы назначены жюри',get(Hackathon,hid).title)
+    audit('jury.appoint',{'hackathon':hid,'user':u.id});commit();return jsonify(ok=True)

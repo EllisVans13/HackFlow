@@ -1,3 +1,4 @@
+from conftest import PASSWORD_0, PASSWORD_1, PASSWORD_3, PASSWORD_4, PASSWORD_5, TEST_PASSWORD
 import io
 import zipfile
 from datetime import timedelta
@@ -54,7 +55,7 @@ def test_official_scenario(client):
 
 
 def test_closed_access_and_registration(client):
-    r=client.post('/api/auth/register',json={'email':'new@example.com','nickname':'Новый','password':'StrongPass2026!'})
+    r=client.post('/api/auth/register',json={'email':'new@example.com','nickname':'Новый','password':PASSWORD_5})
     assert r.status_code==201
     assert client.get('/api/hackathons/1').status_code==403
     assert client.get('/api/teams/1/tasks').status_code==403
@@ -135,7 +136,7 @@ def test_jury_invite_bound_to_email_single_use(client):
     login(client,'organizer'); r=client.post('/api/hackathons/1/jury-invitations',json={'email':'newjury@example.com'}); assert r.status_code==201
     token=r.json['link'].split('invite=')[1]
     login(client,'participant'); assert client.post('/api/jury-invitations/accept',json={'token':token}).status_code==403
-    client.post('/api/auth/register',json={'email':'newjury@example.com','nickname':'Новый судья','password':'StrongPass2026!'})
+    client.post('/api/auth/register',json={'email':'newjury@example.com','nickname':'Новый судья','password':PASSWORD_5})
     assert client.post('/api/jury-invitations/accept',json={'token':token}).status_code==200
     assert client.post('/api/jury-invitations/accept',json={'token':token}).status_code==403
 
@@ -179,9 +180,9 @@ def test_ssrf_urls_blocked(client):
 def test_csrf_required(app):
     app.config['WTF_CSRF_ENABLED']=True
     c=app.test_client()
-    assert c.post('/api/auth/login',json={'email':'captain@hackflow.test','password':'DemoPass2026!'}).status_code==400
+    assert c.post('/api/auth/login',json={'email':'captain@hackflow.test','password':TEST_PASSWORD}).status_code==400
     token=c.get('/api/auth/csrf').json['token']
-    assert c.post('/api/auth/login',json={'email':'captain@hackflow.test','password':'DemoPass2026!'},headers={'X-CSRFToken':token}).status_code==200
+    assert c.post('/api/auth/login',json={'email':'captain@hackflow.test','password':TEST_PASSWORD},headers={'X-CSRFToken':token}).status_code==200
 
 
 def test_submitted_materials_are_immutable(client):
@@ -230,9 +231,9 @@ def test_password_reset_single_use(client,app):
     from hackflow.services import digest
     with app.app_context():
         db.session.add(PasswordReset(user_id=1,token_hash=digest('test-token'),expires_at=now()+timedelta(minutes=30))); db.session.commit()
-    assert client.post('/api/auth/reset',json={'token':'test-token','password':'NewPassword2026!'}).status_code==200
-    assert client.post('/api/auth/reset',json={'token':'test-token','password':'AnotherPass2026!'}).status_code==403
-    assert client.post('/api/auth/login',json={'email':'participant@hackflow.test','password':'NewPassword2026!'}).status_code==200
+    assert client.post('/api/auth/reset',json={'token':'test-token','password':PASSWORD_4}).status_code==200
+    assert client.post('/api/auth/reset',json={'token':'test-token','password':PASSWORD_1}).status_code==403
+    assert client.post('/api/auth/login',json={'email':'participant@hackflow.test','password':PASSWORD_4}).status_code==200
 
 
 def test_profile_image_and_cover_validation(client):

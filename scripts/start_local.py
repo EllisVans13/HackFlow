@@ -1,5 +1,7 @@
 """Start HackFlow on localhost using Docker Desktop. No ChatGPT account required."""
 import json
+import os
+import getpass
 import shutil
 import subprocess
 import sys
@@ -11,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 URL = 'http://localhost:8000'
-DEMO_PASSWORD = 'HackFlowDemo2026!'
+DEMO_PASSWORD = os.environ.get('DEMO_PASSWORD')
 
 def command(*args):
     subprocess.run(args, cwd=ROOT, check=True)
@@ -37,7 +39,9 @@ def main():
     with urllib.request.urlopen(URL + '/api/hackathons', timeout=10) as response:
         empty = not json.load(response)['items']
     if empty:
-        command('docker', 'compose', 'exec', '-T', 'app', 'flask', '--app', 'wsgi', 'seed-demo', '--password', DEMO_PASSWORD)
+        password = DEMO_PASSWORD or getpass.getpass('Задайте пароль демоаккаунтов (минимум 12 символов): ')
+        if len(password) < 12: raise RuntimeError('Пароль должен содержать минимум 12 символов.')
+        command('docker', 'compose', 'exec', '-T', 'app', 'flask', '--app', 'wsgi', 'seed-demo', '--password', password)
     print('\nHackFlow запущен: ' + URL)
     print('Участник: participant@hackflow.test')
     print('Капитан: captain@hackflow.test')
@@ -45,7 +49,7 @@ def main():
     print('Жюри: jury@hackflow.test')
     print('Главный администратор: admin@hackflow.test (если первый админ создан демоскриптом)')
     if empty:
-        print('Пароль демоаккаунтов: ' + DEMO_PASSWORD)
+        print('Используйте пароль, заданный при заполнении базы.')
     else:
         print('Используйте пароль, заданный при первоначальном заполнении демобазы.')
     print('Вход через ChatGPT не нужен. Код команды: HACKFLOW26')

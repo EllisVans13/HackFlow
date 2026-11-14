@@ -1,3 +1,4 @@
+from conftest import PASSWORD_0, PASSWORD_1, PASSWORD_3, PASSWORD_4, PASSWORD_5, TEST_PASSWORD
 from datetime import timedelta
 from conftest import login
 from hackflow.models import *
@@ -6,7 +7,7 @@ from hackflow.api import experience
 
 def test_register_two_events_and_transfer(client,app):
     with app.app_context():
-        enrich('DemoPass2026!');h=Hackathon.query.filter_by(demo_key='showcase-2').first();hid=h.id
+        enrich(TEST_PASSWORD);h=Hackathon.query.filter_by(demo_key='showcase-2').first();hid=h.id
         h2=Hackathon.query.filter_by(demo_key='showcase-3').first();hid2=h2.id
         Admission.query.filter_by(email='participant@hackflow.test',hackathon_id=hid).delete();db.session.commit()
     login(client,'participant')
@@ -20,7 +21,7 @@ def test_register_two_events_and_transfer(client,app):
     login(client,'captain')
     # Captain of another team cannot join a second team in the same event.
     assert client.post(f'/api/hackathons/{hid}/join',json={'code':t['code']}).status_code==409
-    login(client,'participant');client.post('/api/auth/register',json={'email':'invitee@example.com','nickname':'Приглашённый','password':'DemoPass2026!'})
+    login(client,'participant');client.post('/api/auth/register',json={'email':'invitee@example.com','nickname':'Приглашённый','password':TEST_PASSWORD})
     assert client.post(f'/api/hackathons/{hid}/join',json={'code':t['code']}).status_code==403
     client.post(f'/api/hackathons/{hid}/register',json={})
     uid=client.get('/api/auth/me').json['user']['id']
@@ -36,8 +37,8 @@ def test_staff_and_levels(client,app):
         assert client.post('/api/hackathons/1/join',json={'code':'HACKFLOW26'}).status_code==403
         assert client.get('/api/profile').json['staff'] is True
     with app.app_context():
-        enrich('DemoPass2026!');before=Hackathon.query.count();xp=experience(1)['xp'];assert xp>0
-        enrich('DemoPass2026!');assert Hackathon.query.count()==before;assert experience(1)['xp']==xp
+        enrich(TEST_PASSWORD);before=Hackathon.query.count();xp=experience(1)['xp'];assert xp>0
+        enrich(TEST_PASSWORD);assert Hackathon.query.count()==before;assert experience(1)['xp']==xp
         r=PersonalResult.query.filter_by(user_id=1).first();r.score-=10;db.session.commit();assert experience(1)['xp']==xp
 
 def test_admin_user_status_and_event_management(client):
@@ -56,17 +57,17 @@ def test_admin_user_status_and_event_management(client):
     assert client.get('/api/hackathons/1/analytics').status_code==403
     login(client,'admin')
     assert client.patch('/api/admin/users/1',json={'blocked':True}).status_code==200
-    assert client.post('/api/auth/login',json={'email':'participant@hackflow.test','password':'DemoPass2026!'}).status_code==403
+    assert client.post('/api/auth/login',json={'email':'participant@hackflow.test','password':TEST_PASSWORD}).status_code==403
     assert client.patch(f"/api/admin/users/{admin['id']}",json={'role':'participant'}).status_code==403
 
 def test_showcase_creates_first_admin_only(app):
     with app.app_context():
         User.query.filter_by(role='admin').delete();db.session.commit()
-        enrich('AdminDemo2026!')
+        enrich(PASSWORD_0)
         admin=User.query.filter_by(email='admin@hackflow.test').one()
         assert admin.role=='admin'
         original=admin.password_hash
-        enrich('AnotherPass2026!')
+        enrich(PASSWORD_1)
         assert User.query.filter_by(role='admin').count()==1
         assert admin.password_hash==original
 
@@ -101,7 +102,7 @@ def test_invitation_capacity_and_expiry(client,app):
 
 def test_clear_level_breakdown(app):
     with app.app_context():
-        enrich('DemoPass2026!');data=experience(1)
+        enrich(TEST_PASSWORD);data=experience(1)
         assert data['thresholds'][1]==250
         assert sum(x['xp'] for x in data['earned'])==data['xp']
         assert all(x['xp']=={'easy':70,'medium':150,'hard':240}[x['difficulty']] for x in data['earned'])
@@ -134,3 +135,34 @@ def test_hackathon_moderation(client,app):
     r=client.patch(f'/api/admin/hackathons/{hid}',json={'difficulty':'easy','approval':'approved'});assert r.status_code==200
     assert r.json['hackathon']['difficulty']=='easy'
     login(client,'participant');assert client.post(f'/api/hackathons/{hid}/register',json={}).status_code==200
+
+def test_owner_transfer_and_admin_role_changes(client,app):
+    owner=login(client,'admin')
+    assert owner['is_owner'] is True
+    assert client.patch('/api/admin/users/1',json={'role':'admin'}).status_code==200
+    login(client,'participant')
+    assert client.post('/api/admin/ownership',json={'user_id':owner['id']}).status_code==403
+    assert client.patch(f"/api/admin/users/{owner['id']}",json={'blocked':True}).status_code==403
+    login(client,'admin')
+    r=client.post('/api/admin/ownership',json={'user_id':1});assert r.status_code==200,r.json
+    assert r.json['user']['role']=='admin' and r.json['user']['is_owner'] is False
+    assert client.post('/api/admin/ownership',json={'user_id':1}).status_code==403
+    login(client,'participant')
+    assert client.get('/api/auth/me').json['user']['is_owner'] is True
+    assert client.patch('/api/admin/users/4',json={'role':'organizer'}).status_code==200
+    assert client.patch('/api/admin/users/4',json={'role':'jury'}).status_code==200
+    assert client.patch('/api/admin/users/4',json={'role':'participant'}).status_code==200
+    assert client.patch('/api/admin/users/4',json={'role':'admin'}).status_code==200
+    with app.app_context():assert User.query.filter_by(is_owner=True).count()==1
+
+def test_organizer_appoints_jury_only_own_event(client,app):
+    client.post('/api/auth/register',json={'email':'expert@example.com','nickname':'Новый эксперт','password':PASSWORD_3})
+    uid=client.get('/api/auth/me').json['user']['id']
+    assert client.post('/api/hackathons/1/jury-members',json={'email':'expert@example.com'}).status_code==403
+    login(client,'organizer')
+    assert client.post('/api/hackathons/1/jury-members',json={'email':'expert@example.com'}).status_code==200
+    assert client.post('/api/hackathons/1/jury-members',json={'email':'captain@hackflow.test'}).status_code==409
+    with app.app_context():
+        h=Hackathon(title='Чужое событие',start_at=now(),end_at=now()+timedelta(days=5),registration_deadline=now()+timedelta(days=1),submission_deadline=now()+timedelta(days=4));db.session.add(h);db.session.commit();hid=h.id
+        assert EventRole.query.filter_by(user_id=uid,hackathon_id=1,role='jury').count()==1
+    assert client.post(f'/api/hackathons/{hid}/jury-members',json={'email':'expert@example.com'}).status_code==403
