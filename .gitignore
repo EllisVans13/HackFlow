@@ -13,3 +13,5 @@ uploads/
 frontend/.smoke-components.mjs
 
 frontend/dist/
+.local-data/
+.venv-local/

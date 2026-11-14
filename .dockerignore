@@ -6,3 +6,5 @@
 **/.venv
 **/instance
 frontend/dist
+.local-data
+.venv-local
