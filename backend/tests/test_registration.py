@@ -38,7 +38,7 @@ def test_staff_and_levels(client,app):
     with app.app_context():
         enrich('DemoPass2026!');before=Hackathon.query.count();xp=experience(1)['xp'];assert xp>0
         enrich('DemoPass2026!');assert Hackathon.query.count()==before;assert experience(1)['xp']==xp
-        r=PersonalResult.query.filter_by(user_id=1).first();r.score-=10;db.session.commit();assert experience(1)['xp']==xp-100
+        r=PersonalResult.query.filter_by(user_id=1).first();r.score-=10;db.session.commit();assert experience(1)['xp']==xp
 
 def test_admin_user_status_and_event_management(client):
     login(client,'participant')
@@ -102,7 +102,35 @@ def test_invitation_capacity_and_expiry(client,app):
 def test_clear_level_breakdown(app):
     with app.app_context():
         enrich('DemoPass2026!');data=experience(1)
-        assert data['thresholds'][1]==300
+        assert data['thresholds'][1]==250
         assert sum(x['xp'] for x in data['earned'])==data['xp']
-        assert all(x['xp']==round(x['score']*10) for x in data['earned'])
+        assert all(x['xp']=={'easy':70,'medium':150,'hard':240}[x['difficulty']] for x in data['earned'])
         assert data['remaining']==max(0,data['next']-data['xp'])
+
+def test_zero_start_and_level_boundaries(client,app):
+    with app.app_context():
+        assert experience(1)['level']==0
+        for i in range(3):
+            h=Hackathon(title=f'Сложный {i}',difficulty='hard',approval='approved',status='completed',results_published=True,start_at=now()-timedelta(days=3),end_at=now()-timedelta(days=1),registration_deadline=now()-timedelta(days=4),submission_deadline=now()-timedelta(days=2))
+            db.session.add(h);db.session.flush()
+            db.session.add(PersonalResult(user_id=1,hackathon_id=h.id,team_name='Тест',case_title='Тест',score=80,place=1));db.session.commit()
+            assert experience(1)['xp']==240*(i+1)
+            assert experience(1)['level']==[0,1,2][i]
+    login(client,'participant')
+    assert client.get('/api/profile').json['level']['level']==2
+
+
+def test_hackathon_moderation(client,app):
+    login(client,'organizer')
+    data={'title':'Заявка','description':'Новая идея','rules':'Тестовые правила','difficulty':'medium','start_at':(now()+timedelta(days=1)).isoformat(),'end_at':(now()+timedelta(days=8)).isoformat(),'registration_deadline':(now()+timedelta(days=2)).isoformat(),'submission_deadline':(now()+timedelta(days=6)).isoformat()}
+    r=client.post('/api/hackathons',json=data);assert r.status_code==201,r.json
+    hid=r.json['hackathon']['id'];assert r.json['hackathon']['approval']=='pending'
+    assert client.patch(f'/api/admin/hackathons/{hid}',json={'difficulty':'easy','approval':'approved'}).status_code==403
+    assert client.patch(f'/api/hackathons/{hid}',json={'difficulty':'hard'}).status_code==403
+    login(client,'participant')
+    assert hid not in [h['id'] for h in client.get('/api/hackathons').json['items']]
+    assert client.post(f'/api/hackathons/{hid}/register',json={}).status_code==403
+    login(client,'admin')
+    r=client.patch(f'/api/admin/hackathons/{hid}',json={'difficulty':'easy','approval':'approved'});assert r.status_code==200
+    assert r.json['hackathon']['difficulty']=='easy'
+    login(client,'participant');assert client.post(f'/api/hackathons/{hid}/register',json={}).status_code==200

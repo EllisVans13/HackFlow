@@ -66,7 +66,9 @@ def require_organizer(hid):
 def require_admin():
     if current_user.role!='admin': abort(403,'Требуются права администратора.')
 
-def admitted(h): return organizer(h.id) or event_role(h.id,'jury') or Admission.query.filter_by(hackathon_id=h.id,email=current_user.email).first() is not None
+def admitted(h):
+    if h.approval!='approved': return organizer(h.id)
+    return organizer(h.id) or event_role(h.id,'jury') or Admission.query.filter_by(hackathon_id=h.id,email=current_user.email).first() is not None
 
 def require_admission(h):
     if not admitted(h): abort(403,'Нет допуска к закрытому хакатону.')
@@ -122,7 +124,7 @@ def team_data(t):
     return data
 
 def h_data(h,full=False):
-    d=serialize(h,'id title description cover start_at end_at registration_deadline team_deadline submission_deadline team_size closed status results_published peer_published tie_rule')
+    d=serialize(h,'id title description cover difficulty approval review_comment start_at end_at registration_deadline team_deadline submission_deadline team_size closed status results_published peer_published tie_rule')
     if current_user.is_authenticated:
         d['admitted']=admitted(h); d['organizer']=organizer(h.id); d['jury']=event_role(h.id,'jury'); t=member_team(h.id); d['team_id']=t.id if t else None
     if full: d['rules']=h.rules
@@ -189,7 +191,7 @@ def reset():
     get(User,r.user_id).password_hash=generate_password_hash(password); r.used=True; commit(); return jsonify(ok=True)
 
 @api.get('/hackathons')
-def hackathons(): return jsonify(items=[h_data(h) for h in Hackathon.query.order_by(Hackathon.start_at.desc())])
+def hackathons(): return jsonify(items=[h_data(h) for h in Hackathon.query.order_by(Hackathon.start_at.desc()) if h.approval=='approved' or (current_user.is_authenticated and organizer(h.id))])
 
 @api.get('/hackathons/<int:hid>')
 @login_required
@@ -203,6 +205,9 @@ def create_hackathon():
     if current_user.role not in ('organizer','admin'): abort(403,'Администратор должен назначить вас организатором.')
     d=body(); h=Hackathon(title=text(d,'title',200),description=text(d,'description'),rules=text(d,'rules',10000,False),start_at=date(d.get('start_at')),end_at=date(d.get('end_at')),registration_deadline=date(d.get('registration_deadline')),submission_deadline=date(d.get('submission_deadline')),team_size=integer(d.get('team_size',5)),closed=bool(d.get('closed',True)),status='upcoming')
     if not h.registration_deadline<=h.submission_deadline<=h.end_at or h.start_at>=h.end_at: abort(400,'Проверьте порядок сроков.')
+    h.difficulty=d.get('difficulty','easy')
+    if h.difficulty not in ['easy','medium','hard']:abort(400,'Выберите сложность.')
+    h.approval='pending'
     h.team_deadline=date(d.get('team_deadline') or d.get('registration_deadline'))
     if not h.registration_deadline<=h.team_deadline<=h.submission_deadline: abort(400,'Проверьте сроки регистрации, команд и сдачи.')
     db.session.add(h); db.session.flush(); db.session.add(EventRole(user_id=current_user.id,hackathon_id=h.id,role='organizer'))
@@ -213,6 +218,7 @@ def create_hackathon():
 @login_required
 def edit_hackathon(hid):
     h=get(Hackathon,hid); require_organizer(hid); d=body()
+    if 'difficulty' in d or 'approval' in d:abort(403,'Сложность и одобрение назначает администратор.')
     for field in ['title','description','rules']:
         if field in d: setattr(h,field,text(d,field,10000))
     for field in ['start_at','end_at','registration_deadline','team_deadline','submission_deadline']:
@@ -894,17 +900,19 @@ def learning_analytics(hid):
 
 def experience(uid):
     rows=PersonalResult.query.join(Hackathon,PersonalResult.hackathon_id==Hackathon.id).filter(PersonalResult.user_id==uid,Hackathon.results_published.is_(True),Hackathon.status=='completed').all()
-    xp=sum(round(r.score*10) for r in rows)
-    thresholds=[0,300,1000,2000,3500,5500]
+    rewards={'easy':70,'medium':150,'hard':240}
+    rows=[r for r in rows if get(Hackathon,r.hackathon_id).approval=='approved']
+    xp=sum(rewards[get(Hackathon,r.hackathon_id).difficulty] for r in rows)
+    thresholds=[0,250,700,1400,2500,4000,6000]
     index=max(i for i,t in enumerate(thresholds) if xp>=t)
     lower=thresholds[index]; upper=thresholds[index+1] if index+1<len(thresholds) else None
-    return {'earned':[{'hackathon_id':r.hackathon_id,'title':get(Hackathon,r.hackathon_id).title,'score':r.score,'xp':round(r.score*10)} for r in rows],'thresholds':thresholds,'current':xp-lower,'required':upper-lower if upper else None,'remaining':max(0,upper-xp) if upper else 0,'level':index+1,'xp':xp,'next':upper,'progress':round(100*(xp-lower)/(upper-lower)) if upper else 100}
+    return {'earned':[{'hackathon_id':r.hackathon_id,'title':get(Hackathon,r.hackathon_id).title,'score':r.score,'difficulty':get(Hackathon,r.hackathon_id).difficulty,'xp':rewards[get(Hackathon,r.hackathon_id).difficulty]} for r in rows],'thresholds':thresholds,'current':xp-lower,'required':upper-lower if upper else None,'remaining':max(0,upper-xp) if upper else 0,'level':index,'xp':xp,'next':upper,'progress':round(100*(xp-lower)/(upper-lower)) if upper else 100}
 
 @api.post('/hackathons/<int:hid>/register')
 @login_required
 def register_event(hid):
     require_participant(); h=get(Hackathon,hid)
-    if h.status not in ['upcoming','active'] or now()>h.registration_deadline: abort(403,'Регистрация закрыта.')
+    if h.approval!='approved' or h.status not in ['upcoming','active'] or now()>h.registration_deadline: abort(403,'Регистрация закрыта.')
     if not Admission.query.filter_by(hackathon_id=hid,email=current_user.email).first():
         db.session.add(Admission(hackathon_id=hid,email=current_user.email)); activity('hackathon.register')
     commit(); return jsonify(hackathon=h_data(h,True))
@@ -972,3 +980,20 @@ def respond_team_invite(iid):
         add_member(t,current_user);i.status='accepted';activity('team.join')
     else:i.status='declined'
     commit();return jsonify(ok=True,hackathon_id=t.hackathon_id)
+
+
+@api.get('/admin/hackathons')
+@login_required
+def admin_hackathons():
+    require_admin();return jsonify(items=[h_data(h,True) for h in Hackathon.query.order_by(Hackathon.id.desc())])
+
+@api.patch('/admin/hackathons/<int:hid>')
+@login_required
+def review_hackathon(hid):
+    require_admin();h=Hackathon.query.filter_by(id=hid).with_for_update().first_or_404();d=body()
+    if h.approval!='pending':abort(409,'Заявка уже рассмотрена.')
+    difficulty=d.get('difficulty',h.difficulty);decision=d.get('approval')
+    if difficulty not in ['easy','medium','hard'] or decision not in ['approved','rejected']:abort(400,'Проверьте сложность и решение.')
+    h.difficulty=difficulty;h.approval=decision;h.review_comment=text(d,'comment',5000,False)
+    for r in EventRole.query.filter_by(hackathon_id=hid,role='organizer'):notify(r.user_id,'Решение по заявке хакатона',h.title+' · '+decision+' · '+h.review_comment)
+    audit('hackathon.review',{'id':hid,'difficulty':difficulty,'approval':decision});commit();return jsonify(hackathon=h_data(h,True))

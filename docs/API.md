@@ -62,3 +62,6 @@
 
 Приглашения капитана: GET /api/teams/:id/candidates?q=ник, POST /api/teams/:id/invitations {user_id}, GET /api/team-invitations, POST /api/team-invitations/:id/respond {accept: true/false}.
 Профиль level содержит earned (XP по каждому хакатону), thresholds, current, required, remaining и progress.
+
+
+Модерация: GET /api/admin/hackathons; PATCH /api/admin/hackathons/:id {difficulty: easy|medium|hard, approval: approved|rejected, comment}. Доступно только администратору для заявок pending. POST /api/hackathons принимает difficulty и создаёт заявку pending. Каталог скрывает неодобренные мероприятия от посторонних. Опыт по опубликованным завершённым мероприятиям: easy=70, medium=150, hard=240; уровни 0–6 с порогами [0,250,700,1400,2500,4000,6000].

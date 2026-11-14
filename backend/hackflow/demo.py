@@ -34,7 +34,7 @@ def enrich(password):
         key=f'showcase-{i}'
         if Hackathon.query.filter_by(demo_key=key).first():continue
         start=now()+timedelta(days=-40 if status=='completed' else -8 if status=='review' else 4 if status=='upcoming' else -1)
-        h=Hackathon(demo_key=key,title=f'[Демо] Хакатон {i+1}',description='Демонстрационное мероприятие: учебные команды и результаты.',rules='Один кейс на команду.',start_at=start,end_at=start+timedelta(days=7),registration_deadline=start+timedelta(days=3),team_deadline=start+timedelta(days=4),submission_deadline=start+timedelta(days=6),status=status,team_size=5,closed=True);db.session.add(h);db.session.flush()
+        h=Hackathon(difficulty=['easy','medium','hard'][i%3],demo_key=key,title=f'[Демо] Хакатон {i+1}',description='Демонстрационное мероприятие: учебные команды и результаты.',rules='Один кейс на команду.',start_at=start,end_at=start+timedelta(days=7),registration_deadline=start+timedelta(days=3),team_deadline=start+timedelta(days=4),submission_deadline=start+timedelta(days=6),status=status,team_size=5,closed=True);db.session.add(h);db.session.flush()
         db.session.add_all([EventRole(user_id=org.id,hackathon_id=h.id,role='organizer'),EventRole(user_id=jury.id,hackathon_id=h.id,role='jury')])
         case=Case(hackathon_id=h.id,title='Студенческий сервис',company='Демо',description='Упростите командную работу.',requirements='Прототип и презентация',expected='Работающий продукт');db.session.add(case)
         criterion=Criterion(hackathon_id=h.id,title='Качество решения',maximum=100);db.session.add(criterion);db.session.flush()
