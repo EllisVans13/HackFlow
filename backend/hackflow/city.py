@@ -1,7 +1,7 @@
 """Team-city read model: aggregate progress, never task content or judging materials."""
 from .models import db, Team, Task, Membership, User, Case, Submission, now
 
-STYLES=('workshop','tower','lab')
+STYLES=('workshop','tower','lab','aframe','treehouse')
 
 def city_data(hackathon,user,participant=False):
     teams=Team.query.filter_by(hackathon_id=hackathon.id).order_by(Team.created_at,Team.id).all()

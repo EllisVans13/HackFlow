@@ -1,10 +1,12 @@
 import React,{useEffect,useState} from 'react';
+import {CabinBuilding} from './CabinBuildings.jsx';
 import {Search,RefreshCw,Users,ArrowUpRight,CheckCircle2,Columns3,MessageSquare,ExternalLink,Building2,LayoutGrid,List,Plus} from 'lucide-react';
 
 export const cityStages={plot:'Участок',foundation:'Фундамент',building:'Строится',submitted:'Проект сдан'};
-export const cityStyles={workshop:'Мастерская',tower:'Башня',lab:'Лаборатория'};
+export const cityStyles={workshop:'Мастерская',tower:'Башня',lab:'Лаборатория',aframe:'А-фрейм',treehouse:'Дом на дереве'};
 
 export function CityBuilding({team,small=false}){
+ if(['aframe','treehouse'].includes(team.style))return <CabinBuilding team={team} small={small}/>;
  const stage=team.stage||'plot',style=team.style||'workshop';
  const floors=Math.max(1,Math.min(5,team.floors||1));
  const height=style==='tower'?42+floors*19:style==='lab'?30+floors*11:30+floors*14;
@@ -52,7 +54,7 @@ export function CityScene({data,go,onCustomize,onJoin,busy=false,requested=[]}){
 
 export function CityDetail({team,mine,canJoin,go,onCustomize,onJoin,busy,requested,resultsPublished}){
  return <aside className={'panel city-detail tone-'+team.id%4}><div className="city-detail-top"><span>{mine?'ТВОЯ КОМАНДА':'КОМАНДА'}</span><span className="badge">{cityStages[team.stage]}</span></div><h2>{team.name}</h2>{team.description&&<p>{team.description}</p>}<div className="city-detail-preview"><CityBuilding team={team} small/></div><div className="city-detail-metrics"><span>Задачи<strong>{team.done} из {team.total}</strong></span><span>Команда<strong>{team.members.length} из {team.capacity}</strong></span></div><div className="progress"><i style={{width:team.progress+'%'}}/></div><p className="city-case">{team.case_title||'Кейс ещё не выбран'}</p><div className="city-roster">{team.members.map(m=><span key={m.id} title={m.nickname}>{m.avatar?<img src={m.avatar} alt=""/>:<i>{m.nickname.slice(0,1)}</i>}<span>{m.nickname}</span></span>)}</div>
- {team.can_customize&&<div className="city-customize"><label>Архитектура<select value={team.style} disabled={busy} onChange={e=>onCustomize(team.id,{style:e.target.value})}>{Object.entries(cityStyles).map(([key,label])=><option value={key} key={key}>{label}</option>)}</select></label><label className="city-consent"><input type="checkbox" checked={!!team.showcase} disabled={busy} onChange={e=>onCustomize(team.id,{showcase:e.target.checked})}/><span>Показать демо проекта после публикации результатов</span></label></div>}
+ {team.can_customize&&<div className="city-customize"><label>Архитектура<select value={team.style} disabled={busy} onChange={e=>onCustomize(team.id,{style:e.target.value})}>{Object.entries(cityStyles).map(([key,label])=><option value={key} key={key}>{label}</option>)}</select></label><div className="city-cabin-options">{[['aframe','А-фрейм'],['treehouse','Дом на дереве']].map(([style,label])=><button key={style} disabled={busy} className={team.style===style?'selected':''} aria-pressed={team.style===style} onClick={()=>onCustomize(team.id,{style})}><CityBuilding team={{...team,style,stage:'submitted',floors:5}} small/><span>{label}</span></button>)}</div><label className="city-consent"><input type="checkbox" checked={!!team.showcase} disabled={busy} onChange={e=>onCustomize(team.id,{showcase:e.target.checked})}/><span>Показать демо проекта после публикации результатов</span></label></div>}
  {team.project?<div className="city-project"><span className="eyebrow">ВЫСТАВКА ПРОЕКТОВ</span><h3>{team.project.title}</h3><p>{team.project.description}</p><a href={team.project.demo} className="button secondary" target="_blank" rel="noreferrer">Открыть демо<ExternalLink size={14}/></a></div>:team.stage==='submitted'&&<p className="city-project-pending"><CheckCircle2 size={15}/>{resultsPublished?'Проект сдан. Команда пока не открыла демо.':'Решение сдано. Демо можно открыть после публикации результатов.'}</p>}
  {mine?<div className="city-card-actions"><button className="button" onClick={()=>go('kanban')}><Columns3 size={15}/>К задачам</button><button className="button secondary" onClick={()=>go('chat')}><MessageSquare size={15}/>Чат</button></div>:team.recruiting&&canJoin?<button className="button full" disabled={busy||requested} onClick={()=>onJoin(team.id)}><Users size={15}/>{requested?'Заявка отправлена':'Хочу в команду'}</button>:<p className="city-recruitment">{team.recruiting?'В команде есть свободные места':'Набор в команду закрыт'}</p>}
  </aside>;

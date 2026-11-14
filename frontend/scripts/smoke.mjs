@@ -68,7 +68,7 @@ try{
   const cover=renderToString(React.createElement(components.HackathonImage,{event:{cover:'/hackathons/green.svg'}}));
   if(!cover.includes('/hackathons/green.svg'))throw Error('Cover image missing');
   console.log('OK bundled image and populated/empty board states');
-  for(const style of ['workshop','tower','lab'])for(const stage of ['plot','foundation','building','submitted']){
+  for(const style of ['workshop','tower','lab','aframe','treehouse'])for(const stage of ['plot','foundation','building','submitted']){
     const html=renderToString(React.createElement(components.CityBuilding,{team:{...cityTeam,style,stage,floors:5}}));
     if(!html.includes('city-building')||html.includes('NaN'))throw Error('Invalid city building '+style+' '+stage);
   }
@@ -79,7 +79,7 @@ try{
   if(!emptyCity.includes('Создать команду'))throw Error('Empty city needs create-team action');
   const gallery=renderToString(React.createElement(components.CityDetail,{team:{...cityTeam,can_customize:false,stage:'submitted',project:{title:'Выставка',description:'Открытый проект',demo:'https://example.com/exhibit'}},resultsPublished:true,go:()=>{}}));
   if(!gallery.includes('https://example.com/exhibit')||!gallery.includes('Открыть демо'))throw Error('Published exhibition link missing');
-  console.log('OK city: 12 building states, captain controls, empty city, exhibition');
-  console.log(`Passed: ${names.length+33} render cases. Browser QA remains separate.`);
+  console.log('OK city: 20 building states, captain controls, empty city, exhibition');
+  console.log(`Passed: ${names.length+41} render cases. Browser QA remains separate.`);
  }finally{await rm(modulePath,{force:true})}
 }finally{await rm(dir,{recursive:true,force:true})}

@@ -1,3 +1,4 @@
+import pytest
 import json
 from conftest import login, TEST_PASSWORD
 from hackflow.models import db,Team,Task,Message,Hackathon,User,Upload,Submission
@@ -63,3 +64,18 @@ def test_project_exhibition_requires_results_and_captain_consent(app,client):
     assert 'github' not in project and 'presentation_id' not in project
     client.patch('/api/teams/1/city',json={'showcase':False})
     assert row(client)['project'] is None
+
+
+@pytest.mark.parametrize('style',['aframe','treehouse'])
+def test_new_cabin_styles_persist_without_changing_team_work(app,client,style):
+    login(client,'captain')
+    original=row(client)
+    with app.app_context():count=Task.query.filter_by(team_id=1).count()
+    assert client.patch('/api/teams/1/city',json={'style':style}).status_code==200
+    client.post('/api/auth/logout');login(client,'captain')
+    updated=row(client)
+    assert updated['style']==style
+    assert updated['progress']==original['progress'] and updated['stage']==original['stage']
+    with app.app_context():
+        assert db.session.get(Team,1).city_style==style
+        assert Task.query.filter_by(team_id=1).count()==count

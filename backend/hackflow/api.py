@@ -268,7 +268,7 @@ def customize_city(tid):
     t=get(Team,tid);require_admission(get(Hackathon,t.hackathon_id));captain(t);d=body()
     from .city import STYLES
     if 'style' in d:
-        if d['style'] not in STYLES:abort(400,'Выберите мастерскую, башню или лабораторию.')
+        if d['style'] not in STYLES:abort(400,'Выберите доступную архитектуру из списка.')
         t.city_style=d['style']
     if 'showcase' in d:
         if not isinstance(d['showcase'],bool):abort(400,'Ожидается логическое значение.')
