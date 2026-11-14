@@ -43,6 +43,7 @@ def main():
     print('Капитан: captain@hackflow.test')
     print('Организатор: organizer@hackflow.test')
     print('Жюри: jury@hackflow.test')
+    print('Главный администратор: admin@hackflow.test (если первый админ создан демоскриптом)')
     if empty:
         print('Пароль демоаккаунтов: ' + DEMO_PASSWORD)
     else:

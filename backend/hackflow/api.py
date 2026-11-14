@@ -770,19 +770,29 @@ def analytics(hid):
 @api.get('/admin/users')
 @login_required
 def admin_users():
-    require_admin(); return jsonify(items=[user_data(u) for u in User.query.order_by(User.id)])
+    require_admin(); return jsonify(items=[dict(user_data(u),event_roles=[dict(hackathon_id=r.hackathon_id,title=get(Hackathon,r.hackathon_id).title,role=r.role) for r in EventRole.query.filter_by(user_id=u.id)]) for u in User.query.order_by(User.id)],hackathons=[{'id':h.id,'title':h.title} for h in Hackathon.query.order_by(Hackathon.id)])
 
 @api.patch('/admin/users/<int:uid>')
 @login_required
 def admin_update(uid):
     require_admin(); u=get(User,uid); d=body()
+    if u.role=='admin' and u.id!=current_user.id: abort(403,'Административные аккаунты нельзя изменять через список пользователей.')
     if u.id==current_user.id: abort(403,'Изменение собственных административных прав запрещено.')
     if 'role' in d:
         if d['role'] not in ['participant','organizer']: abort(400,'Администраторы создаются только CLI-командой.')
         u.role=d['role']
         if d['role']=='participant': EventRole.query.filter_by(user_id=uid,role='organizer').delete()
-    if 'blocked' in d: u.blocked=bool(d['blocked'])
-    audit('user.update',{'user':uid,'changes':{k:d[k] for k in ['role','blocked'] if k in d}}); commit(); return jsonify(user=user_data(u))
+    if 'blocked' in d:
+        if not isinstance(d['blocked'],bool): abort(400,'Ожидается логический статус блокировки.')
+        u.blocked=d['blocked']
+    if 'hackathon_id' in d:
+        hid=integer(d['hackathon_id']); get(Hackathon,hid)
+        if u.role!='organizer': abort(400,'Сначала назначьте пользователя организатором.')
+        assignment=EventRole.query.filter_by(user_id=uid,hackathon_id=hid,role='organizer').first()
+        if d.get('assign',True):
+            if not assignment: db.session.add(EventRole(user_id=uid,hackathon_id=hid,role='organizer'))
+        elif assignment: db.session.delete(assignment)
+    audit('user.update',{'user':uid,'changes':{k:d[k] for k in ['role','blocked','hackathon_id','assign'] if k in d}}); commit(); return jsonify(user=user_data(u))
 
 @api.get('/admin/audit')
 @login_required

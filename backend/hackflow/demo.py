@@ -18,6 +18,11 @@ def demo_pdf():
 
 def enrich(password):
     if len(password)<12: raise ValueError('Минимум 12 символов')
+    if not User.query.filter_by(role='admin').first():
+        if User.query.filter_by(email='admin@hackflow.test').first():
+            raise ValueError('Email admin@hackflow.test уже занят; создайте администратора через init-admin.')
+        db.session.add(User(email='admin@hackflow.test',nickname='Главный администратор',role='admin',password_hash=generate_password_hash(password)))
+        db.session.flush()
     us=[]
     for name in ['participant','captain','organizer','jury','builder']:
         u=User.query.filter_by(email=name+'@hackflow.test').first()
