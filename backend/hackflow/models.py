@@ -312,3 +312,11 @@ class Media(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'))
     purpose = db.Column(db.String(20), nullable=False)
+
+class TeamInvitation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    expires_at = db.Column(db.DateTime, nullable=False)
+    __table_args__ = (UniqueConstraint('team_id','user_id',name='uq_team_invitation_recipient'),)

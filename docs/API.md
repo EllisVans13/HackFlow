@@ -58,3 +58,7 @@
 Принятие апелляции с изменением оценки: status=accepted, response=причина, jury_id, scores и comment. Система меняет конкретную оценку жюри, а не добавляет произвольные баллы поверх 100.
 
 Дополнительно: POST /api/profile/avatar, POST /api/hackathons/:id/cover (multipart file PNG/JPEG, до 2 МБ), GET /api/media/:token, GET /api/hackathons/:id/learning-analytics.
+
+
+Приглашения капитана: GET /api/teams/:id/candidates?q=ник, POST /api/teams/:id/invitations {user_id}, GET /api/team-invitations, POST /api/team-invitations/:id/respond {accept: true/false}.
+Профиль level содержит earned (XP по каждому хакатону), thresholds, current, required, remaining и progress.

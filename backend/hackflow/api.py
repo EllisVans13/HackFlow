@@ -895,10 +895,10 @@ def learning_analytics(hid):
 def experience(uid):
     rows=PersonalResult.query.join(Hackathon,PersonalResult.hackathon_id==Hackathon.id).filter(PersonalResult.user_id==uid,Hackathon.results_published.is_(True),Hackathon.status=='completed').all()
     xp=sum(round(r.score*10) for r in rows)
-    thresholds=[0,1000,2500,5000,10000,20000]
+    thresholds=[0,300,1000,2000,3500,5500]
     index=max(i for i,t in enumerate(thresholds) if xp>=t)
     lower=thresholds[index]; upper=thresholds[index+1] if index+1<len(thresholds) else None
-    return {'level':index+1,'xp':xp,'next':upper,'progress':round(100*(xp-lower)/(upper-lower)) if upper else 100}
+    return {'earned':[{'hackathon_id':r.hackathon_id,'title':get(Hackathon,r.hackathon_id).title,'score':r.score,'xp':round(r.score*10)} for r in rows],'thresholds':thresholds,'current':xp-lower,'required':upper-lower if upper else None,'remaining':max(0,upper-xp) if upper else 0,'level':index+1,'xp':xp,'next':upper,'progress':round(100*(xp-lower)/(upper-lower)) if upper else 100}
 
 @api.post('/hackathons/<int:hid>/register')
 @login_required
@@ -919,3 +919,56 @@ def deadlines(hid):
         status='Завершён' if h.status=='completed' else 'Истёк' if seconds<0 else 'Скоро' if seconds<86400 else 'Впереди'
         rows.append({'title':label,'at':dt.isoformat()+'Z','status':status,'seconds':max(0,seconds)})
     return jsonify(items=rows)
+
+
+@api.get('/teams/<int:tid>/candidates')
+@login_required
+def invite_candidates(tid):
+    t=get(Team,tid); captain(t); require_admission(get(Hackathon,t.hackathon_id))
+    emails=[a.email for a in Admission.query.filter_by(hackathon_id=t.hackathon_id)]
+    users=User.query.filter(User.email.in_(emails),User.blocked.is_(False)).order_by(User.nickname).all()
+    query=request.args.get('q','').strip().lower()[:64]
+    rows=[]
+    for u in users:
+        if not participant_account(u) or member_team(t.hackathon_id,u.id) or query not in u.nickname.lower(): continue
+        inv=TeamInvitation.query.filter_by(team_id=tid,user_id=u.id,status='pending').first()
+        rows.append({'id':u.id,'nickname':u.nickname,'avatar':u.avatar,'level':experience(u.id)['level'],'invited':bool(inv and inv.expires_at>now())})
+        if len(rows)>=100:break
+    return jsonify(items=rows)
+
+@api.post('/teams/<int:tid>/invitations')
+@login_required
+def send_team_invite(tid):
+    t=Team.query.filter_by(id=tid).with_for_update().first_or_404();captain(t)
+    h=get(Hackathon,t.hackathon_id);u=get(User,integer(body().get('user_id')));require_participant(u)
+    if u.blocked or not Admission.query.filter_by(hackathon_id=h.id,email=u.email).first(): abort(403,'Участник должен зарегистрироваться на этот хакатон.')
+    if member_team(h.id,u.id): abort(409,'Участник уже состоит в команде.')
+    if now()>(h.team_deadline or h.registration_deadline):abort(403,'Формирование команд завершено.')
+    if Membership.query.filter_by(team_id=tid).count()>=h.team_size:abort(409,'Команда заполнена.')
+    inv=TeamInvitation.query.filter_by(team_id=tid,user_id=u.id).first()
+    if inv and inv.status=='pending' and inv.expires_at>now():abort(409,'Приглашение уже отправлено.')
+    if not inv:inv=TeamInvitation(team_id=tid,user_id=u.id);db.session.add(inv)
+    inv.status='pending';inv.expires_at=min(now()+timedelta(days=3),h.team_deadline or h.registration_deadline)
+    notify(u.id,'Приглашение в команду',t.name+' · '+h.title+' — откройте уведомления, чтобы ответить.');activity('team.invite');commit()
+    return jsonify(id=inv.id),201
+
+@api.get('/team-invitations')
+@login_required
+def my_team_invites():
+    require_participant()
+    return jsonify(items=[{'id':i.id,'team':get(Team,i.team_id).name,'hackathon':get(Hackathon,get(Team,i.team_id).hackathon_id).title,'expires_at':i.expires_at.isoformat()+'Z'} for i in TeamInvitation.query.filter_by(user_id=current_user.id,status='pending') if i.expires_at>now()])
+
+@api.post('/team-invitations/<int:iid>/respond')
+@login_required
+def respond_team_invite(iid):
+    require_participant();i=get(TeamInvitation,iid)
+    if i.user_id!=current_user.id:abort(403,'Чужое приглашение.')
+    t=Team.query.filter_by(id=i.team_id).with_for_update().first_or_404()
+    i=TeamInvitation.query.filter_by(id=iid).populate_existing().with_for_update().first_or_404()
+    if i.status!='pending' or i.expires_at<=now():abort(409,'Приглашение недействительно.')
+    accept=body().get('accept')
+    if not isinstance(accept,bool):abort(400,'Укажите принять или отклонить.')
+    if accept:
+        add_member(t,current_user);i.status='accepted';activity('team.join')
+    else:i.status='declined'
+    commit();return jsonify(ok=True,hackathon_id=t.hackathon_id)

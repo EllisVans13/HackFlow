@@ -69,3 +69,40 @@ def test_showcase_creates_first_admin_only(app):
         enrich('AnotherPass2026!')
         assert User.query.filter_by(role='admin').count()==1
         assert admin.password_hash==original
+
+def test_captain_invitations(client,app):
+    login(client,'captain')
+    candidates=client.get('/api/teams/1/candidates').json['items']
+    assert any(u['id']==1 and 'level' in u and 'email' not in u for u in candidates)
+    invitation=client.post('/api/teams/1/invitations',json={'user_id':1})
+    assert invitation.status_code==201
+    iid=invitation.json['id']
+    assert client.post('/api/teams/1/invitations',json={'user_id':1}).status_code==409
+    login(client,'organizer')
+    assert client.get('/api/teams/1/candidates').status_code==403
+    assert client.post(f'/api/team-invitations/{iid}/respond',json={'accept':True}).status_code==403
+    login(client,'participant')
+    assert client.get('/api/team-invitations').json['items'][0]['id']==iid
+    assert client.post('/api/teams/1/invitations',json={'user_id':2}).status_code==403
+    assert client.post(f'/api/team-invitations/{iid}/respond',json={'accept':True}).status_code==200
+    assert client.post(f'/api/team-invitations/{iid}/respond',json={'accept':True}).status_code==409
+    assert client.get('/api/hackathons/1').json['hackathon']['team_id']==1
+
+def test_invitation_capacity_and_expiry(client,app):
+    login(client,'captain');iid=client.post('/api/teams/1/invitations',json={'user_id':1}).json['id']
+    with app.app_context():
+        db.session.get(Hackathon,1).team_size=1;db.session.commit()
+    login(client,'participant')
+    assert client.post(f'/api/team-invitations/{iid}/respond',json={'accept':True}).status_code==409
+    with app.app_context():
+        from hackflow.models import TeamInvitation
+        db.session.get(TeamInvitation,iid).expires_at=now()-timedelta(seconds=1);db.session.commit()
+    assert client.post(f'/api/team-invitations/{iid}/respond',json={'accept':True}).status_code==409
+
+def test_clear_level_breakdown(app):
+    with app.app_context():
+        enrich('DemoPass2026!');data=experience(1)
+        assert data['thresholds'][1]==300
+        assert sum(x['xp'] for x in data['earned'])==data['xp']
+        assert all(x['xp']==round(x['score']*10) for x in data['earned'])
+        assert data['remaining']==max(0,data['next']-data['xp'])
