@@ -166,3 +166,33 @@ def test_organizer_appoints_jury_only_own_event(client,app):
         h=Hackathon(title='Чужое событие',start_at=now(),end_at=now()+timedelta(days=5),registration_deadline=now()+timedelta(days=1),submission_deadline=now()+timedelta(days=4));db.session.add(h);db.session.commit();hid=h.id
         assert EventRole.query.filter_by(user_id=uid,hackathon_id=1,role='jury').count()==1
     assert client.post(f'/api/hackathons/{hid}/jury-members',json={'email':'expert@example.com'}).status_code==403
+
+def test_remove_jury_revokes_access_preserves_scores_and_other_events(client,app):
+    from test_flows import submit, prepare, score
+    sid=submit(client);prepare(client,sid);score(client,sid)
+    with app.app_context():
+        enrich(TEST_PASSWORD)
+        other=Hackathon.query.filter_by(demo_key='showcase-0').one().id
+        scores_before=JuryScore.query.count();history_before=ScoreHistory.query.count()
+    login(client,'participant')
+    assert client.delete('/api/hackathons/1/jury-members/4').status_code==403
+    login(client,'organizer')
+    assert client.delete('/api/hackathons/1/jury-members/4').status_code==200
+    login(client,'jury')
+    assert client.get('/api/hackathons/1/jury').status_code==403
+    assert client.get(f'/api/jury/{sid}').status_code==403
+    assert client.post(f'/api/jury/{sid}/flag',json={}).status_code==403
+    assert client.get(f'/api/hackathons/{other}/jury').status_code==200
+    with app.app_context():
+        assert JuryScore.query.count()==scores_before
+        assert ScoreHistory.query.count()==history_before
+        assert ReviewAssignment.query.filter_by(user_id=4,submission_id=sid,kind='jury').count()==0
+        assert AuditLog.query.filter_by(action='jury.remove').count()==1
+
+def test_organizer_cannot_remove_jury_from_other_event(client,app):
+    with app.app_context():
+        h=Hackathon(title='Чужой',start_at=now(),end_at=now()+timedelta(days=5),registration_deadline=now()+timedelta(days=1),submission_deadline=now()+timedelta(days=4));db.session.add(h);db.session.flush()
+        hid=h.id;db.session.add(EventRole(user_id=4,hackathon_id=hid,role='jury'));db.session.commit()
+    login(client,'organizer')
+    assert client.delete(f'/api/hackathons/{hid}/jury-members/4').status_code==403
+    with app.app_context():assert EventRole.query.filter_by(hackathon_id=hid,user_id=4,role='jury').count()==1

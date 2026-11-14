@@ -1025,3 +1025,17 @@ def appoint_jury(hid):
     if not EventRole.query.filter_by(user_id=u.id,hackathon_id=hid,role='jury').first():
         db.session.add(EventRole(user_id=u.id,hackathon_id=hid,role='jury'));notify(u.id,'Вы назначены жюри',get(Hackathon,hid).title)
     audit('jury.appoint',{'hackathon':hid,'user':u.id});commit();return jsonify(ok=True)
+
+@api.delete('/hackathons/<int:hid>/jury-members/<int:uid>')
+@login_required
+def remove_jury(hid,uid):
+    require_organizer(hid);get(Hackathon,hid);user=get(User,uid)
+    role=EventRole.query.filter_by(hackathon_id=hid,user_id=uid,role='jury').with_for_update().first()
+    if not role:abort(404,'Пользователь не состоит в жюри этого хакатона.')
+    projects=[s.id for s in Submission.query.join(Team,Submission.team_id==Team.id).filter(Team.hackathon_id==hid)]
+    removed=ReviewAssignment.query.filter(ReviewAssignment.user_id==uid,ReviewAssignment.kind=='jury',ReviewAssignment.submission_id.in_(projects)).delete(synchronize_session=False)
+    Invitation.query.filter_by(hackathon_id=hid,email=user.email,used=False,revoked=False).update({'revoked':True})
+    db.session.delete(role)
+    notify(uid,'Вы сняты с жюри хакатона',get(Hackathon,hid).title)
+    audit('jury.remove',{'hackathon':hid,'user':uid,'assignments_removed':removed});commit()
+    return jsonify(ok=True)
