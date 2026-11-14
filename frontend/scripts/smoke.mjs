@@ -5,16 +5,19 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Auth','Dashboard','Catalog','TeamPage','Cases','Board','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
+const names=['Welcome','Auth','Dashboard','Catalog','TeamPage','Cases','Board','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')}};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage};`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
  await writeFile(modulePath,transformed.outputFiles[0].text);
  try{
   const components=await import(pathToFileURL(modulePath));
+  for(const role of ['admin','organizer','jury']){if(components.resolvePage('dashboard',{role,participant:false})!=='home')throw Error('Staff overview must resolve to home');}
+  if(components.resolvePage('dashboard',{role:'participant',participant:true})!=='dashboard')throw Error('Participant overview unavailable');
+  if(components.resolvePage('',{role:'participant'})!=='home')throw Error('Default page must be home');
   const React=await import('react');const {renderToString}=await import('react-dom/server');
   globalThis.location={search:'',hash:'',pathname:'/'};
   const date=new Date().toISOString();
