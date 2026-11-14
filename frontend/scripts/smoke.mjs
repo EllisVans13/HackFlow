@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Welcome','Auth','StaffHome','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
+const names=['Welcome','Auth','StaffHome','Snowfall','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
  const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage};`;
@@ -42,6 +42,14 @@ try{
   const finished=draw({h:{...h,submission_deadline:'2020-01-01T00:00:00Z'},tasks:{items:[{id:1,status:'done'}]},materials:{items:[]},schedule:{items:[]}});
   if(!finished.includes('Срок завершён')||!finished.includes('Все задачи выполнены'))throw Error('Missing completion states');
   console.log('OK unified home: empty, no-team, sorted tasks/events and finished states');
-  console.log(`Passed: ${names.length+5} render cases. Browser QA remains separate.`);
+  const snow=renderToString(React.createElement(components.Snowfall,{enabled:true}));
+  if(renderToString(React.createElement(components.Snowfall,{enabled:false}))!=='')throw Error('Snow must be disabled outside holiday theme');
+  if((snow.match(/class="winter-flake"/g)||[]).length!==40)throw Error('Snow particles missing');
+  const positions=[...snow.matchAll(/left:([^;]+)/g)].map(m=>m[1]);
+  const speeds=[...snow.matchAll(/--fall-time:([^;]+)/g)].map(m=>m[1]);
+  if(new Set(positions).size<35||new Set(speeds).size<10)throw Error('Snow must vary in position and speed');
+  if(!snow.includes('aria-hidden="true"')||snow.includes('❄'))throw Error('Snow must be decorative vector particles');
+  console.log('OK snowfall: disabled state, 40 dispersed particles, varied speed, decorative SVG');
+  console.log(`Passed: ${names.length+7} render cases. Browser QA remains separate.`);
  }finally{await rm(modulePath,{force:true})}
 }finally{await rm(dir,{recursive:true,force:true})}
