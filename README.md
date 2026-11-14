@@ -1,0 +1,182 @@
+# HackFlow
+
+Работающая платформа студенческих хакатонов: **Flask + PostgreSQL + React/Vite + Tailwind + Lucide**. Интерфейс на русском, три темы, данные сохраняются на сервере.
+
+## Локальный запуск без ChatGPT
+
+Скачайте репозиторий через **Code → Download ZIP**, распакуйте архив и установите Docker Desktop и Python 3. Запустите Docker Desktop, затем:
+
+- Windows: `START-WINDOWS.bat`.
+- macOS: `START-MAC.command` или `python3 scripts/start_local.py` из терминала.
+- Linux: `python3 scripts/start_local.py`.
+
+Скрипт создаёт конфигурацию, поднимает локальные сервисы, заполняет пустую демобазу и открывает **http://localhost:8000**. Вход в приложение — обычный email и пароль. Авторизация через ChatGPT не используется.
+
+При первоначальном заполнении скриптом пароль демоаккаунтов: `HackFlowDemo2026!`. Подробности: `ЛОКАЛЬНЫЙ-ЗАПУСК.txt`. Для первой сборки нужен интернет для загрузки зависимостей.
+
+## Ручной запуск на Windows и macOS
+
+Установите Docker Desktop, Python 3 и распакуйте проект. Откройте терминал **в корне проекта**.
+
+```bash
+python scripts/configure.py
+docker compose up --build -d
+```
+
+На macOS команда Python может называться `python3`; на Windows — `py`.
+
+Добавьте демоданные (один раз, в пустую базу):
+
+```bash
+docker compose exec app flask --app wsgi seed-demo --password "HackFlowDemo2026!"
+```
+
+Откройте **http://localhost:8000**. Нужен именно HTTP; для локального запуска `COOKIE_SECURE=false` уже задан конфигуратором.
+
+Создайте первого администратора защищённой интерактивной командой:
+
+```bash
+docker compose exec app flask --app wsgi init-admin
+```
+
+Укажите `admin@hackflow.test`, ник и отдельный пароль (минимум 12 символов). Администраторы через веб-регистрацию не создаются.
+
+### Демонстрационные аккаунты
+
+Пароль всех четырёх аккаунтов — **тот, который передан команде seed-demo**. В приведённом примере: `HackFlowDemo2026!`.
+
+| Аккаунт | Email | Роль |
+|---|---|---|
+| Участник | participant@hackflow.test | Допущен, ещё не состоит в команде |
+| Капитан | captain@hackflow.test | Капитан «Код будущего» |
+| Организатор | organizer@hackflow.test | Организатор IT Hack 2026 |
+| Жюри | jury@hackflow.test | Принявший роль жюри IT Hack 2026 |
+| Администратор | Заданный в init-admin | Управление пользователями |
+
+Код вступления в демонстрационную команду: **HACKFLOW26**. Демодаты считаются от момента заполнения: начало вчера, сдача через 5 дней, окончание через 7 дней. Самостоятельная регистрация **не выдаёт допуск** к закрытому событию.
+
+Используйте демоаккаунты в изолированном демо. Перед публичным запуском смените пароли или создайте реальные аккаунты и новую базу.
+
+## Проверка сценариев
+
+1. Войти участником, открыть «Моя команда», вступить по `HACKFLOW26`.
+2. Открыть кейс, материал, отметить изученным; открыть расписание и ссылку на учебную запись.
+3. Создать задачу и изменить её статус. Отправить сообщение в командный чат.
+4. В другом браузере войти капитаном. Открыть «Сдача проекта», добавить название, описание, публичный GitHub, HTTPS-ссылку на продукт и PDF.
+5. При желании загрузить ZIP исходников. Запустить чек-лист, проверить предупреждения, отправить итоговое решение.
+6. Войти организатором → «Управление» → «Проекты». Открыть PDF и ссылки.
+7. Подготовить **обезличенный текст** вручную, сохранить, назначить деможюри (ID 4 в исходной демобазе). Запустить CodeCheck.
+8. Войти жюри, открыть назначенную работу, поставить оценки по всем критериям, оставить комментарий.
+9. Организатор публикует результаты. Участник видит командный и личный рейтинг.
+10. Капитан подаёт апелляцию. Организатор отвечает; при принятии может изменить оценку конкретного эксперта с обоснованием. Личные рейтинги обновляются.
+
+Подробности: [docs/DEMO.md](docs/DEMO.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/STATUS.md](docs/STATUS.md), [docs/API.md](docs/API.md).
+
+## Локальная разработка без Docker
+
+Нужны Python 3.12+, Node.js 22+, PostgreSQL 17. Создайте PostgreSQL-пользователя и базу, задайте `DATABASE_URL` в `.env` и выполните конфигуратор (либо заполните `.env.example` вручную).
+
+macOS/Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+cd backend
+flask --app wsgi db upgrade
+flask --app wsgi seed-demo --password "HackFlowDemo2026!"
+flask --app wsgi run --port 8000
+```
+
+Windows PowerShell:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r backend/requirements.txt
+cd backend
+flask --app wsgi db upgrade
+flask --app wsgi seed-demo --password "HackFlowDemo2026!"
+flask --app wsgi run --port 8000
+```
+
+Во втором терминале из корня:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Откройте `http://localhost:5173`. Vite проксирует `/api` на Flask: cookies и CSRF работают через один origin. В production Flask отдаёт собранный frontend сам. Gunicorn применяется в Linux-контейнере; на Windows локально используется Flask dev server.
+
+Фоновые напоминания в отдельном терминале из backend:
+
+```bash
+python -m hackflow.worker
+```
+
+Однократный запуск: `flask --app wsgi reminders`. Compose запускает worker автоматически. Не запускайте несколько workers напоминаний одновременно.
+
+## Тесты
+
+```bash
+pip install -r backend/requirements.txt
+pytest -q
+cd frontend
+npm ci
+npm run build
+```
+
+По умолчанию тесты используют отдельную временную SQLite-базу только как быстрый тестовый стенд. Для проверки настоящих ограничений PostgreSQL используйте **пустую выделенную тестовую базу**, не рабочую: тесты создают и удаляют таблицы.
+
+```bash
+# macOS/Linux
+TEST_DATABASE_URL=postgresql+psycopg://user:password@localhost/hackflow_test pytest -q
+```
+
+```powershell
+# Windows PowerShell
+$env:TEST_DATABASE_URL="postgresql+psycopg://user:password@localhost/hackflow_test"
+pytest -q
+```
+
+GitHub Actions настроен на PostgreSQL 17. Фактически выполненные проверки записаны в `docs/VALIDATION.md`.
+
+## Публичное развёртывание
+
+Нужен Linux VPS с Docker Compose, домен с A-записью на IP сервера и открытые 80/443.
+
+1. Скопируйте проект на сервер; выполните `python3 scripts/configure.py`.
+2. В `.env` задайте `SITE_DOMAIN=ваш-домен`, `PUBLIC_URL=https://ваш-домен`, `COOKIE_SECURE=true`, `CORS_ORIGINS=https://ваш-домен`.
+3. Выполните `docker compose --profile production up --build -d`.
+4. Создайте администратора, при необходимости заполните демобазу или импортируйте допуски через UI.
+5. Откройте `https://ваш-домен/api/health`; ожидается `{"database":"postgresql","status":"ok"}`.
+6. Для восстановления пароля настройте SMTP STARTTLS в `.env`, перезапустите контейнер app. Без SMTP доступно только восстановление через сервер: `docker compose exec app flask --app wsgi reset-password`.
+
+Caddy получает TLS-сертификат и проксирует app. PostgreSQL и Redis не публикуются наружу. Вход в app напрямую доступен только на loopback сервера. Не используйте dev server для публичного запуска.
+
+Резервное копирование PostgreSQL:
+
+```bash
+docker compose exec -T db pg_dump -U hackflow -d hackflow > hackflow-backup.sql
+```
+
+Отдельно сохраняйте том `upload_data` с PDF и ZIP. Команда `docker compose down` сохраняет данные; `down -v` удалит их. Миграции применяет одноразовый сервис migrate перед app.
+
+## Репозиторий и скачивание
+
+Исходники: https://github.com/EllisVans13/HackFlow
+
+Скачать папку проекта: **Code → Download ZIP**. Либо клонировать:
+
+```bash
+git clone https://github.com/EllisVans13/HackFlow.git
+cd HackFlow
+```
+
+`.env`, runtime-данные, node_modules и кеши исключены. Frontend собирается из исходников: Docker выполняет сборку сам.
+
+## Границы поставки
+
+Это функциональный MVP и значительная часть этапов 2–3, **не заявление о полном выполнении всех 39 разделов ТЗ**. Точная матрица реализованного и оставшегося — `docs/STATUS.md`. Исходники размещены в указанном GitHub-репозитории. Само Flask-приложение не публикуется: по запросу пользователя используется локальный запуск на localhost. Docker-конфигурация подготовлена, но Docker daemon в среде разработки недоступен. Браузерная проверка также не проводилась. Сборка React, серверные тесты, настоящая PostgreSQL-база и миграции проверены.
