@@ -1,0 +1,37 @@
+HackFlow — локальный проект, без входа через ChatGPT
+
+Нужны Docker Desktop и Python 3. Установите и запустите Docker Desktop.
+
+Windows: запустите START-WINDOWS.bat.
+macOS: запустите START-MAC.command. Если macOS не разрешает открыть файл,
+в терминале из папки проекта выполните: python3 scripts/start_local.py
+Linux: python3 scripts/start_local.py
+
+Скрипт создаёт локальную конфигурацию, собирает приложение,
+поднимает PostgreSQL, создаёт демоданные в пустой базе и открывает браузер.
+При первой сборке нужен интернет для загрузки зависимостей и Docker-образов.
+
+Адрес: http://localhost:8000
+Вход: обычный email и пароль внутри HackFlow. ChatGPT не требуется.
+
+Демоаккаунты при первоначальном запуске скриптом:
+participant@hackflow.test — участник
+captain@hackflow.test — капитан
+organizer@hackflow.test — организатор
+jury@hackflow.test — жюри
+Пароль: HackFlowDemo2026!
+Код команды: HACKFLOW26
+
+Администратор создаётся отдельной защищённой командой:
+docker compose exec app flask --app wsgi init-admin
+
+Остановка: docker compose down
+Данные сохраняются между запусками. Не используйте down -v: он удалит тома.
+
+Исходники: frontend/ и backend/
+Подробная инструкция: README.md
+Реализованные функции и ограничения: docs/STATUS.md
+
+Docker daemon в среде разработки отсутствует, поэтому фактический запуск
+Docker Desktop на вашем компьютере ещё требуется проверить.
+Проверены Flask/PostgreSQL, 21 серверный тест и production-сборка React.

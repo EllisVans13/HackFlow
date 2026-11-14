@@ -1,0 +1,15 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+backend/instance/
+*.db
+*.sqlite
+*.sqlite3
+uploads/
+frontend/.smoke-components.mjs
+
+frontend/dist/
