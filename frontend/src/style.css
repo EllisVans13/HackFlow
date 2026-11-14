@@ -288,7 +288,7 @@ main{padding-top:30px}
 /* Compact home: team, deadline and just two useful destinations. */
 main{padding-bottom:32px}
 .page-heading p:empty{display:none}
-.overview-compact .overview-next{padding:24px 26px;background:var(--surface)}
+.overview-compact .overview-next{padding:24px 26px}
 .home-team-heading{display:flex;align-items:center;gap:17px;min-width:0}.home-team-heading>div{min-width:0}.home-cover{display:block;width:82px;height:78px;flex-shrink:0;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px #0002}
 .home-team-heading h2{font-size:25px;line-height:1.25;margin:0;overflow-wrap:anywhere}
 .home-case-link{display:flex;align-items:center;gap:5px;max-width:100%;margin-top:8px;padding:0;text-align:left;font-size:12px;line-height:1.6;color:var(--muted)}.home-case-link:hover{color:var(--accent)}
@@ -310,11 +310,10 @@ main{padding-bottom:32px}
 .case-card:has(.case-details[open]) .case-preview{display:none}.case-full{border-top:1px solid var(--border);padding-top:15px;margin-top:8px}.case-full p{font-size:13px;line-height:1.8;white-space:pre-wrap;margin-bottom:14px}.case-full h4{font-size:12px;font-weight:650;margin:16px 0 7px}.case-full a{margin:4px 0 0}
 .case-actions{display:flex;align-items:center;min-height:42px;margin-top:auto}.case-actions .badge{font-size:11px;padding:7px 10px}
 .case-reference{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}.case-reference-item{align-self:start;padding:17px 20px}.case-reference-item summary{font-size:13px;color:var(--text)}.case-reference-item>p{font-size:13px;margin-top:15px}.case-reference-item .criteria-row{margin-top:18px}
-/* Theme-specific contrast and warm paper surfaces, without changing purple. */
-:root[data-theme=yellow] .overview-deadline{background:#e3cd91;--accent:#59471e;--text:#3c321e;--muted:#6c5c3e;--border:#cdb16d;color:var(--text);border-left-color:#c8ad6d;box-shadow:inset 0 1px 0 #fff5}
-:root[data-theme=holiday] .overview-deadline{background:#684748;--accent:#f1d6b2;--text:#fff0df;--muted:#dfc6b9;--border:#8e6865;color:var(--text);border-left-color:#8e6865;box-shadow:inset 0 3px 0 #b98077}
-:root[data-theme=holiday] .overview-next{background:#303e37}
-:root[data-theme=yellow] .overview-learning,:root[data-theme=holiday] .overview-learning,
+/* Keep the home in its original theme palette, with no extra card colors. */
+:root[data-theme=yellow] .overview-compact{--bg:#161616;--surface:#212120;--surface2:#2c2c29;--sidebar:#1b1b1a;--border:#3c3b35;--text:#f3f1e9;--muted:#b9b6aa;--accent:#e4c96c;--accent-ink:#30280f;--accent-soft:#3c3522;--green:#becda7;--hero:#302b20;--shadow:0 10px 30px #00000020,0 2px 5px #00000016}
+:root[data-theme=holiday] .overview-compact{--bg:#10251f;--surface:#1a332b;--surface2:#244237;--sidebar:#142c24;--border:#365347;--text:#f5f1e8;--muted:#b0c5b8;--accent:#eddbc0;--accent-ink:#343a2b;--accent-soft:#394637;--green:#bcd9b6;--hero:#243e31;--shadow:0 10px 32px #020d092e,0 2px 5px #020d0920}
+/* Varied case surfaces. */
 :root[data-theme=yellow] .case-accent-0,:root[data-theme=holiday] .case-accent-0{--surface:#efe8d8;--surface2:#e3dccb;--border:#cfc6b0;--text:#3e4439;--muted:#646b5d;--accent:#645d36;--accent-soft:#dedfc5;--accent-ink:#fff9e9;--green:#466343;background:var(--surface);color:var(--text);border-color:#cfc6b0}
 :root[data-theme=yellow] .case-accent-1,:root[data-theme=holiday] .case-accent-1{--surface:#dfe7e9;--surface2:#cedbdd;--border:#b3c7ca;--text:#30494e;--muted:#536b70;--accent:#3f6771;--accent-soft:#c8dadd;--accent-ink:#f7ffff;--green:#3a6252;background:var(--surface);color:var(--text);border-color:#b3c7ca}
 :root[data-theme=yellow] .case-accent-2,:root[data-theme=holiday] .case-accent-2{--surface:#eadcd1;--surface2:#ddcbbf;--border:#c9b2a2;--text:#51413a;--muted:#776153;--accent:#865846;--accent-soft:#dcc5b4;--accent-ink:#fff7ef;--green:#4c6140;background:var(--surface);color:var(--text);border-color:#c9b2a2}
