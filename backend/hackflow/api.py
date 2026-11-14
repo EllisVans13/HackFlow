@@ -116,7 +116,7 @@ def add_member(t,u):
 def team_data(t):
     members=[]
     for m in Membership.query.filter_by(team_id=t.id):
-        u=get(User,m.user_id); members.append({'id':u.id,'nickname':u.nickname,'captain':u.id==t.captain_id})
+        u=get(User,m.user_id); members.append({'id':u.id,'nickname':u.nickname,'avatar':u.avatar,'captain':u.id==t.captain_id})
     tasks=Task.query.filter_by(team_id=t.id).all()
     data=serialize(t,'id hackathon_id name description captain_id case_id open created_at')
     data.update(members=members,progress=round(100*sum(x.status=='done' for x in tasks)/len(tasks)) if tasks else 0)
@@ -125,6 +125,7 @@ def team_data(t):
 
 def h_data(h,full=False):
     d=serialize(h,'id title description cover difficulty approval review_comment start_at end_at registration_deadline team_deadline submission_deadline team_size closed status results_published peer_published tie_rule')
+    d['is_demo']=bool(h.demo_key and h.demo_key.startswith('showcase-'))
     if current_user.is_authenticated:
         d['admitted']=admitted(h); d['organizer']=organizer(h.id); d['jury']=event_role(h.id,'jury'); t=member_team(h.id); d['team_id']=t.id if t else None
     if full: d['rules']=h.rules

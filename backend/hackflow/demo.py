@@ -56,3 +56,60 @@ def enrich(password):
         db.session.flush()
         if status=='completed':publish_results(h)
     db.session.commit()
+    refresh_demo_content()
+
+# Only seed-owned rows are refreshed. User-created events, names and passwords stay intact.
+SHOWCASE = [
+    ('Campus Connect', 'Сервисы для студенческих сообществ: от поиска команды до совместных проектов.', 'Объединить студенческое сообщество', ['Линия связи', 'Соседи по коду']),
+    ('Город рядом', 'Удобные городские маршруты, локальные события и доступные общественные пространства.', 'Городской маршрут без барьеров', ['Городские легенды', 'Точка на карте']),
+    ('Зачётный сервис', 'Инструменты, которые помогают учиться, планировать нагрузку и готовиться к экзаменам.', 'Учебный план без перегрузки', ['После пары', 'Пятый семестр']),
+    ('Зелёный код', 'Цифровые решения для осознанного потребления и повседневных экологичных привычек.', 'Сервис разумного потребления', ['Вторая жизнь', 'Лист и байт']),
+    ('Финтех: первый шаг', 'Понятные личные финансы: бюджет, финансовые цели и безопасные платежи.', 'Первый личный бюджет', ['Баланс', 'Карманный план']),
+    ('Зимний спринт', 'Полезные сервисы для зимнего кампуса, студенческих встреч и обмена вещами.', 'Зимний кампус', ['Тёплый старт', 'Снежный коммит']),
+    ('Доступная среда', 'Интерфейсы и сервисы, которыми удобно пользоваться людям с разными возможностями.', 'Доступный цифровой сервис', ['Без границ', 'Равный доступ']),
+]
+DEMO_NAMES = ['Илья Соколов','Софья Крылова','Максим Лебедев','Алина Орлова',
+              'Артём Кузнецов','Дарья Миронова','Никита Волков','Ева Смирнова',
+              'Роман Беляев','Полина Зайцева','Кирилл Фомин','Вера Павлова']
+
+def refresh_demo_content():
+    events=[(i,Hackathon.query.filter_by(demo_key=f'showcase-{i}').first()) for i in range(len(SHOWCASE))]
+    if not any(h for _,h in events):return
+    participants=[]
+    for i,name in enumerate(DEMO_NAMES):
+        email=f'showcase.member.{i+1}@hackflow.test'
+        u=User.query.filter_by(email=email).first()
+        if not u:
+            nickname=name;suffix=1
+            while User.query.filter_by(nickname=nickname).first():
+                nickname=f'{name} · {suffix}';suffix+=1
+            u=User(email=email,nickname=nickname,role='participant',password_hash=generate_password_hash(secrets.token_urlsafe(32)))
+            db.session.add(u);db.session.flush()
+        participants.append(u)
+    for i,h in events:
+        if not h:continue
+        title,description,case_title,names=SHOWCASE[i]
+        if h.title==f'[Демо] Хакатон {i+1}':h.title=title
+        if h.description=='Демонстрационное мероприятие: учебные команды и результаты.':h.description=description
+        for case in Case.query.filter_by(hackathon_id=h.id,title='Студенческий сервис'):
+            case.title=case_title;case.description=description
+        teams=Team.query.filter_by(hackathon_id=h.id).order_by(Team.id).all()
+        for j,t in enumerate(teams):
+            if j>=len(names):break
+            if t.name==f'Демо-команда {i}.{j}':t.name=names[j]
+            for k,task in enumerate(Task.query.filter_by(team_id=t.id).order_by(Task.id)):
+                if task.title==f'Демо-задача {k+1}' and k<4:
+                    task.title=['Разобрать пользовательский сценарий','Собрать интерфейс прототипа','Проверить основные сценарии','Подготовить демонстрацию'][k]
+            # Preserve published histories: new sample memberships are only for active/upcoming events.
+            if h.status not in ('active','upcoming'):continue
+            for offset in range(2):
+                u=participants[(i*4+j*2+offset)%len(participants)]
+                if u.blocked or u.role!='participant' or EventRole.query.filter_by(user_id=u.id).first():continue
+                if Membership.query.filter_by(user_id=u.id,hackathon_id=h.id).first():continue
+                if Message.query.filter_by(team_id=t.id,author_id=u.id).first():continue
+                if Membership.query.filter_by(team_id=t.id).count()>=h.team_size:break
+                if not Admission.query.filter_by(hackathon_id=h.id,email=u.email).first():db.session.add(Admission(hackathon_id=h.id,email=u.email))
+                db.session.add(Membership(user_id=u.id,team_id=t.id,hackathon_id=h.id));db.session.flush()
+                text=['Собрала заметки по сценарию, добавлю их в задачи.','Прототип готов к обсуждению. Посмотрим его на встрече?'][offset]
+                db.session.add(Message(team_id=t.id,author_id=u.id,text=text))
+    db.session.commit()

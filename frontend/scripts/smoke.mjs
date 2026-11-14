@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Welcome','Auth','StaffHome','Snowfall','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
+const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','SidebarAccount','Avatar','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
  const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage};`;
@@ -50,6 +50,15 @@ try{
   if(new Set(positions).size<35||new Set(speeds).size<10)throw Error('Snow must vary in position and speed');
   if(!snow.includes('aria-hidden="true"')||snow.includes('❄'))throw Error('Snow must be decorative vector particles');
   console.log('OK snowfall: disabled state, 40 dispersed particles, varied speed, decorative SVG');
-  console.log(`Passed: ${names.length+7} render cases. Browser QA remains separate.`);
+  const garland=renderToString(React.createElement(components.WinterGarland,{enabled:true}));
+  if(!garland.includes('aria-hidden="true"')||renderToString(React.createElement(components.WinterGarland,{enabled:false}))!=='')throw Error('Garland must be decorative and holiday-only');
+  const avatarUser={...user,avatar:'/api/media/test-avatar'};
+  const avatarTeam={...team,members:[{...team.members[0],avatar:avatarUser.avatar}]};
+  for(const Component of [components.Avatar,components.SidebarAccount,components.TeamPage,components.DashboardView,components.Profile,components.SettingsPage]){
+    const html=renderToString(React.createElement(Component,{...context,user:avatarUser,team:avatarTeam,tasks:{items:[]},materials:{items:[]},schedule:{items:[]}}));
+    if(!html.includes(avatarUser.avatar))throw Error('Profile avatar missing in '+Component.name);
+  }
+  console.log('OK holiday garland and avatar consistency across profile, settings, team and home');
+  console.log(`Passed: ${names.length+15} render cases. Browser QA remains separate.`);
  }finally{await rm(modulePath,{force:true})}
 }finally{await rm(dir,{recursive:true,force:true})}

@@ -31,6 +31,11 @@ def register_commands(app):
         if not u or len(password)<12: raise click.ClickException('Аккаунт не найден или пароль короче 12 символов.')
         u.password_hash=generate_password_hash(password); db.session.commit(); click.echo('Пароль изменён.')
 
+    @app.cli.command('refresh-demo')
+    def refresh_demo():
+        from .demo import refresh_demo_content
+        refresh_demo_content(); click.echo('Демонстрационный каталог обновлён. Пароли сохранены.')
+
     @app.cli.command('seed-showcase')
     @click.option('--password',envvar='DEMO_PASSWORD',required=True)
     def seed_showcase(password):

@@ -242,6 +242,10 @@ def test_profile_image_and_cover_validation(client):
     buf=io.BytesIO(); Image.new('RGB',(32,32),'red').save(buf,format='PNG'); image=buf.getvalue()
     r=client.post('/api/profile/avatar',data={'file':(io.BytesIO(image),'avatar.png')}); assert r.status_code==200,r.json
     path=r.json['user']['avatar']; assert client.get(path).mimetype=='image/jpeg'
+    uid=r.json['user']['id']
+    assert next(m for m in client.get('/api/teams/1').json['team']['members'] if m['id']==uid)['avatar']==path
+    messages=client.post('/api/teams/1/messages',json={'text':'Фото профиля обновлено'}).json['items']
+    assert messages[-1]['avatar']==path
     assert client.post('/api/profile/avatar',data={'file':(io.BytesIO(b'<script/>'),'bad.png')}).status_code==400
     assert client.post('/api/hackathons/1/cover',data={'file':(io.BytesIO(image),'cover.png')}).status_code==403
     login(client,'organizer'); assert client.post('/api/hackathons/1/cover',data={'file':(io.BytesIO(image),'cover.png')}).status_code==200

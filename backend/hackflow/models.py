@@ -19,7 +19,7 @@ class User(UserMixin, db.Model):
     github = db.Column(db.String(300), default='')
     telegram = db.Column(db.String(100), default='')
     avatar = db.Column(db.String(300), default='')
-    theme = db.Column(db.String(20), default='yellow')
+    theme = db.Column(db.String(20), default='holiday')
     created_at = db.Column(db.DateTime, default=now, nullable=False)
 
     __table_args__ = (db.Index('uq_platform_owner','is_owner',unique=True,postgresql_where=db.text('is_owner'),sqlite_where=db.text('is_owner')),CheckConstraint("NOT is_owner OR (role='admin' AND NOT blocked)",name='owner_is_active_admin'))

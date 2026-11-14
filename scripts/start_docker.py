@@ -42,6 +42,7 @@ def main():
         password = DEMO_PASSWORD or getpass.getpass('Задайте пароль демоаккаунтов (минимум 12 символов): ')
         if len(password) < 12: raise RuntimeError('Пароль должен содержать минимум 12 символов.')
         command('docker', 'compose', 'exec', '-T', 'app', 'flask', '--app', 'wsgi', 'seed-demo', '--password', password)
+    command('docker', 'compose', 'exec', '-T', 'app', 'flask', '--app', 'wsgi', 'refresh-demo')
     print('\nHackFlow запущен: ' + URL)
     print('Участник: participant@hackflow.test')
     print('Капитан: captain@hackflow.test')

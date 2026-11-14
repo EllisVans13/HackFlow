@@ -196,3 +196,24 @@ def test_organizer_cannot_remove_jury_from_other_event(client,app):
     login(client,'organizer')
     assert client.delete(f'/api/hackathons/{hid}/jury-members/4').status_code==403
     with app.app_context():assert EventRole.query.filter_by(hackathon_id=hid,user_id=4,role='jury').count()==1
+
+def test_holiday_default_and_preserved_theme_choice(client):
+    r=client.post('/api/auth/register',json={'email':'newtheme@example.com','nickname':'Новая тема','password':TEST_PASSWORD})
+    assert r.status_code==201 and r.json['user']['theme']=='holiday'
+    assert client.patch('/api/profile',json={'theme':'purple'}).json['user']['theme']=='purple'
+    assert client.get('/api/auth/me').json['user']['theme']=='purple'
+
+def test_demo_catalog_refresh_is_named_idempotent_and_preserves_customizations(app):
+    from hackflow.demo import refresh_demo_content, SHOWCASE
+    with app.app_context():
+        enrich(TEST_PASSWORD)
+        h=Hackathon.query.filter_by(demo_key='showcase-2').one()
+        assert h.title==SHOWCASE[2][0]
+        assert User.query.filter(User.email.like('showcase.member.%@hackflow.test')).count()==12
+        original_hash=User.query.filter_by(email='captain@hackflow.test').one().password_hash
+        counts=[User.query.count(),Team.query.count(),Membership.query.count(),Message.query.count()]
+        h.title='Название организатора';db.session.commit()
+        refresh_demo_content()
+        assert [User.query.count(),Team.query.count(),Membership.query.count(),Message.query.count()]==counts
+        assert h.title=='Название организатора'
+        assert User.query.filter_by(email='captain@hackflow.test').one().password_hash==original_hash

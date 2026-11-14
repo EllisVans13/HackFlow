@@ -35,3 +35,15 @@ export default function Snowfall({ enabled = false }) {
     </span></span>)}
   </div>;
 }
+
+export function WinterGarland({ enabled = false }) {
+  if (!enabled) return null;
+  return <div className="winter-garland" aria-hidden="true"><svg viewBox="0 0 1000 26" preserveAspectRatio="none" fill="none">
+    <path d="M0 2Q125 20 250 4T500 4T750 4T1000 2" stroke="currentColor" strokeOpacity=".35"/>
+    {Array.from({length:16},(_,i)=><g key={i} transform={`translate(${22+i*63},${8+Math.sin(i*.8)*4})`}>
+      <path d="M0 -5v6" stroke="currentColor" strokeOpacity=".45"/>
+      <ellipse cy="4" rx="2.5" ry="4" className={i%3===0?'garland-berry':'garland-gold'}/>
+    </g>)}
+    <path d="M0 2l24 15M5 6l-1 9m6-6 1 10m5-7 3 10M1000 2l-24 15m19-11 1 9m-6-6-1 10m-5-7-3 10" stroke="#89a68c" strokeWidth="1.5"/>
+  </svg></div>;
+}
