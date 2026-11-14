@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','SidebarAccount','Avatar','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
+const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','SidebarAccount','Avatar','Dashboard','DashboardView','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
  const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage};`;
@@ -26,24 +26,30 @@ try{
   const team={id:1,name:'Команда',members:[{id:1,nickname:'Тест',captain:true}],captain_id:1,progress:0,requests:[],description:'Описание'};
   const context={h,hid:1,user,team,cases:[],criteria:[],events:[h],notes:[],revision:0,theme:'yellow',go:()=>{},run:()=>{},form:()=>{},setHid:()=>{},setTheme:()=>{},setUser:()=>{},onLogin:()=>{}};
   const cityTeam={...team,style:'tower',stage:'building',floors:3,total:8,done:4,progress:50,capacity:5,recruiting:true,case_title:'Городской сервис',project:null,can_customize:true,showcase:false};
+  const caseItem={id:9,title:'Удобный кампус',company:'Кампус',description:'Короткая постановка задачи.',requirements:'Полные условия задачи',expected:'Работающий прототип',url:'https://example.com/case'};
   const cityData={items:[cityTeam],my_team_id:1,results_published:false,summary:{teams:1,members:1,tasks_done:4,submitted:0}};
-  for(const name of names){renderToString(React.createElement(components[name],{...context,team:cityTeam,channel:'team',data:name==='CityScene'?cityData:{items:[]},status:'todo',go:()=>{}}));console.log('OK',name)}
+  for(const name of names){renderToString(React.createElement(components[name],{...context,team:cityTeam,channel:'team',data:name==='CityScene'?cityData:{items:[]},status:'todo',go:()=>{},item:caseItem,c:context}));console.log('OK',name)}
   renderToString(React.createElement(components.SubmissionPage,{...context,team:{...team,submission:{id:1,code:'X7Q2',title:'Сданный проект',description:'Решение',submitted_at:date,github:'https://github.com/pallets/flask',demo:'https://example.com',presentation_id:1}}}));
   const draw=(props)=>renderToString(React.createElement(components.DashboardView,{...context,...props}));
   const empty=draw({tasks:{items:[]},materials:{items:[]},schedule:{items:[]}});
-  for(const label of ['Задач пока нет','Создать задачу','Материалов пока нет','Пригласить участников','Часовой пояс']){
+  for(const label of ['Обучение','Материалы','Расписание','Пригласить','Часовой пояс']){
     if(!empty.includes(label))throw Error('Missing home action: '+label);
   }
   if(empty.includes('0 / 0')||empty.includes('Большие идеи'))throw Error('Home must show work rather than placeholder stats/banner');
   const unteamed=draw({team:null,tasks:null,materials:{items:[]},schedule:{items:[]}});
-  if(!unteamed.includes('Найти команду')||!unteamed.includes('Сначала собери команду'))throw Error('Missing no-team guidance');
+  if(!unteamed.includes('Найти команду')||!unteamed.includes('Собери команду'))throw Error('Missing no-team guidance');
   const future=new Date(Date.now()+3600000).toISOString(),later=new Date(Date.now()+7200000).toISOString();
   const loaded=draw({tasks:{items:[{id:2,title:'Поздняя задача',status:'todo',deadline:later},{id:1,title:'Ближайшая задача',status:'doing',deadline:future}]},materials:{items:[{id:1,completed:true}]},schedule:{items:[{id:2,title:'Позднее событие',starts_at:later},{id:1,title:'Ближайшее событие',starts_at:future}]}});
-  if(loaded.indexOf('Ближайшая задача')>loaded.indexOf('Поздняя задача'))throw Error('Task deadlines must sort ascending');
-  if(loaded.indexOf('Ближайшее событие')>loaded.indexOf('Позднее событие'))throw Error('Events must sort ascending');
+  for(const text of ['Задачи команды','Ближайшие задачи','Ближайшая задача','Поздняя задача'])if(loaded.includes(text))throw Error('Task blocks must not appear on home');
+  if(!loaded.includes('Ближайшее событие')||loaded.includes('Позднее событие'))throw Error('Home must show only the nearest event');
   const finished=draw({h:{...h,submission_deadline:'2020-01-01T00:00:00Z'},tasks:{items:[{id:1,status:'done'}]},materials:{items:[]},schedule:{items:[]}});
-  if(!finished.includes('Срок завершён')||!finished.includes('Все задачи выполнены'))throw Error('Missing completion states');
-  console.log('OK unified home: empty, no-team, sorted tasks/events and finished states');
+  if(!finished.includes('Срок завершён'))throw Error('Missing deadline completion state');
+  console.log('OK compact home: no task blocks, nearest event and deadline');
+  const compactCase=renderToString(React.createElement(components.CaseCard,{item:caseItem,c:context}));
+  if(!compactCase.includes('<details')||!compactCase.includes('Подробнее')||!compactCase.includes(caseItem.requirements)||!compactCase.includes(caseItem.expected))throw Error('Case requirements must remain available in details');
+  const references=renderToString(React.createElement(components.Cases,{...context,cases:[caseItem]}));
+  if(!references.includes('Правила')||!references.includes('Критерии'))throw Error('Rules and criteria missing');
+  console.log('OK compact case cards preserve full requirements, rules and criteria');
   const snow=renderToString(React.createElement(components.Snowfall,{enabled:true}));
   if(renderToString(React.createElement(components.Snowfall,{enabled:false}))!=='')throw Error('Snow must be disabled outside holiday theme');
   if((snow.match(/class="winter-flake"/g)||[]).length!==40)throw Error('Snow particles missing');
@@ -80,6 +86,6 @@ try{
   const gallery=renderToString(React.createElement(components.CityDetail,{team:{...cityTeam,can_customize:false,stage:'submitted',project:{title:'Выставка',description:'Открытый проект',demo:'https://example.com/exhibit'}},resultsPublished:true,go:()=>{}}));
   if(!gallery.includes('https://example.com/exhibit')||!gallery.includes('Открыть демо'))throw Error('Published exhibition link missing');
   console.log('OK city: 20 building states, captain controls, empty city, exhibition');
-  console.log(`Passed: ${names.length+41} render cases. Browser QA remains separate.`);
+  console.log(`Passed: ${names.length+43} render cases. Browser QA remains separate.`);
  }finally{await rm(modulePath,{force:true})}
 }finally{await rm(dir,{recursive:true,force:true})}
