@@ -16,3 +16,19 @@
 
 .admin-filters{display:flex;gap:12px;align-items:center;margin:24px 0;flex-wrap:wrap}.admin-filters input{flex:1;min-width:180px}.admin-filters select{width:210px}.admin-assignment{margin-bottom:9px}.admin-assignment small{white-space:normal}
 .xp-details{margin-bottom:24px}.xp-details>.progress{height:12px;margin:15px 0}.xp-details strong{color:var(--accent)}.candidate-row{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border);padding:15px 0}.candidate-row strong{flex:1;overflow-wrap:anywhere}.candidate-row .badge{margin-left:auto;color:var(--accent)}.invitation-inbox{margin-bottom:24px}.candidate-row .button{font-size:11px}.modal>input{margin-top:16px}@media(max-width:430px){.candidate-row{flex-wrap:wrap}.candidate-row strong{font-size:13px}.candidate-row .button{margin-left:auto}.xp-details th,.xp-details td{padding:10px 6px;font-size:11px}}
+
+/* Buttons may be rendered as button, a or label (file picker).
+   Form labels have their own spacing; action controls must not inherit it. */
+.button {
+  margin: 0;
+  flex-direction: row;
+  vertical-align: middle;
+}
+.panel-actions .button,
+.form-actions .button,
+.section-title .button {
+  margin: 0;
+}
+.button[hidden] {
+  display: none !important;
+}
