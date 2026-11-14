@@ -79,7 +79,8 @@ def build_frontend():
         marker.write_text(deps)
     sources = [frontend / 'package.json', frontend / 'package-lock.json',
                frontend / 'index.html', frontend / 'vite.config.js']
-    sources.extend(path for path in (frontend / 'src').rglob('*') if path.is_file())
+    for directory in ('src', 'public'):
+        sources.extend(path for path in (frontend / directory).rglob('*') if path.is_file())
     source_hash = fingerprint(sources)
     marker = DATA / 'frontend-build.sha256'
     if not (frontend / 'dist/index.html').exists() or not marker.exists() or marker.read_text() != source_hash:

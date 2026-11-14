@@ -217,3 +217,23 @@ def test_demo_catalog_refresh_is_named_idempotent_and_preserves_customizations(a
         assert [User.query.count(),Team.query.count(),Membership.query.count(),Message.query.count()]==counts
         assert h.title=='Название организатора'
         assert User.query.filter_by(email='captain@hackflow.test').one().password_hash==original_hash
+
+def test_showcase_covers_are_bundled_and_uploaded_cover_wins(app,client):
+    from pathlib import Path
+    import xml.etree.ElementTree as ET
+    with app.app_context():enrich(TEST_PASSWORD)
+    items=client.get('/api/hackathons').json['items']
+    covers=[h['cover'] for h in items if h['is_demo']]
+    assert len(set(covers))==7
+    public=Path(__file__).resolve().parents[2]/'frontend/public'
+    for cover in covers:
+        path=public/cover.lstrip('/')
+        assert path.is_file()
+        svg=ET.parse(path).getroot()
+        assert svg.tag=='{http://www.w3.org/2000/svg}svg'
+        assert not svg.findall('.//{http://www.w3.org/2000/svg}script')
+    with app.app_context():
+        h=Hackathon.query.filter_by(demo_key='showcase-3').one()
+        h.cover='/api/media/organizer-custom-cover';hid=h.id;db.session.commit()
+    updated=next(h for h in client.get('/api/hackathons').json['items'] if h['id']==hid)
+    assert updated['cover']=='/api/media/organizer-custom-cover'

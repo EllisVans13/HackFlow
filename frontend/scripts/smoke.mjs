@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','SidebarAccount','Avatar','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
+const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','SidebarAccount','Avatar','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','BoardView','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
  const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage};`;
@@ -25,7 +25,7 @@ try{
   const user={id:1,nickname:'Тест',email:'test@example.com',role:'organizer',created_at:date,theme:'yellow'};
   const team={id:1,name:'Команда',members:[{id:1,nickname:'Тест',captain:true}],captain_id:1,progress:0,requests:[],description:'Описание'};
   const context={h,hid:1,user,team,cases:[],criteria:[],events:[h],notes:[],revision:0,theme:'yellow',go:()=>{},run:()=>{},form:()=>{},setHid:()=>{},setTheme:()=>{},setUser:()=>{},onLogin:()=>{}};
-  for(const name of names){renderToString(React.createElement(components[name],{...context,channel:'team'}));console.log('OK',name)}
+  for(const name of names){renderToString(React.createElement(components[name],{...context,channel:'team',data:{items:[]},status:'todo'}));console.log('OK',name)}
   renderToString(React.createElement(components.SubmissionPage,{...context,team:{...team,submission:{id:1,code:'X7Q2',title:'Сданный проект',description:'Решение',submitted_at:date,github:'https://github.com/pallets/flask',demo:'https://example.com',presentation_id:1}}}));
   const draw=(props)=>renderToString(React.createElement(components.DashboardView,{...context,...props}));
   const empty=draw({tasks:{items:[]},materials:{items:[]},schedule:{items:[]}});
@@ -59,6 +59,13 @@ try{
     if(!html.includes(avatarUser.avatar))throw Error('Profile avatar missing in '+Component.name);
   }
   console.log('OK holiday garland and avatar consistency across profile, settings, team and home');
-  console.log(`Passed: ${names.length+15} render cases. Browser QA remains separate.`);
+  const board=renderToString(React.createElement(components.BoardView,{...context,data:{items:[{id:9,title:'Моя задача',status:'todo',assignee_id:1}]}}));
+  for(const label of ['Моя задача','Здесь начинается работа','Место для проверки','Здесь будут результаты'])if(!board.includes(label))throw Error('Missing board state '+label);
+  const blank=renderToString(React.createElement(components.BoardView,{...context,data:{items:[]}}));
+  if(!blank.includes('Создать задачу'))throw Error('Empty board needs create action');
+  const cover=renderToString(React.createElement(components.HackathonImage,{event:{cover:'/hackathons/green.svg'}}));
+  if(!cover.includes('/hackathons/green.svg'))throw Error('Cover image missing');
+  console.log('OK bundled image and populated/empty board states');
+  console.log(`Passed: ${names.length+18} render cases. Browser QA remains separate.`);
  }finally{await rm(modulePath,{force:true})}
 }finally{await rm(dir,{recursive:true,force:true})}

@@ -125,6 +125,8 @@ def team_data(t):
 
 def h_data(h,full=False):
     d=serialize(h,'id title description cover difficulty approval review_comment start_at end_at registration_deadline team_deadline submission_deadline team_size closed status results_published peer_published tie_rule')
+    from .catalog_assets import cover_for
+    d['cover']=cover_for(h)
     d['is_demo']=bool(h.demo_key and h.demo_key.startswith('showcase-'))
     if current_user.is_authenticated:
         d['admitted']=admitted(h); d['organizer']=organizer(h.id); d['jury']=event_role(h.id,'jury'); t=member_team(h.id); d['team_id']=t.id if t else None
