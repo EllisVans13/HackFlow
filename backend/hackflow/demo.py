@@ -40,7 +40,7 @@ def enrich(password):
         criterion=Criterion(hackathon_id=h.id,title='Качество решения',maximum=100);db.session.add(criterion);db.session.flush()
         for u in [participant,cap,builder]:db.session.add(Admission(hackathon_id=h.id,email=u.email))
         for j,owner in enumerate([cap,builder]):
-            t=Team(hackathon_id=h.id,captain_id=owner.id,name=f'Демо-команда {i}.{j}',code=secrets.token_urlsafe(9),case_id=case.id);db.session.add(t);db.session.flush()
+            t=Team(hackathon_id=h.id,captain_id=owner.id,city_style=['workshop','tower','lab'][(i+j)%3],city_showcase=status=='completed',name=f'Демо-команда {i}.{j}',code=secrets.token_urlsafe(9),case_id=case.id);db.session.add(t);db.session.flush()
             members=[owner,participant] if j==0 and status in ['completed','review'] else [owner]
             for u in members:db.session.add(Membership(user_id=u.id,team_id=t.id,hackathon_id=h.id))
             for k,st in enumerate(['todo','doing','review','done']):db.session.add(Task(team_id=t.id,creator_id=owner.id,assignee_id=owner.id,title=f'Демо-задача {k+1}',status=st,deadline=h.submission_deadline))

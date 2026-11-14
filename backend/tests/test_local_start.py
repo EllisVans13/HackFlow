@@ -27,7 +27,7 @@ def test_fresh_sqlite_migrations_seed_and_restart(launcher):
     with app.app_context():
         assert db.engine.dialect.name=='sqlite'
         assert db.session.execute(db.text('PRAGMA foreign_keys')).scalar()==1
-        assert db.session.execute(db.text('select version_num from alembic_version')).scalar()=='a13_platform_owner'
+        assert db.session.execute(db.text('select version_num from alembic_version')).scalar()=='a14_team_city'
         count=Hackathon.query.count();users=User.query.count()
         assert count>0 and users>=5
         assert User.query.filter_by(email='admin@hackflow.test').one().is_owner

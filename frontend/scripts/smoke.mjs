@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','SidebarAccount','Avatar','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','BoardView','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
+const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','SidebarAccount','Avatar','Dashboard','DashboardView','Catalog','TeamPage','Cases','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
  const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage};`;
@@ -25,7 +25,9 @@ try{
   const user={id:1,nickname:'Тест',email:'test@example.com',role:'organizer',created_at:date,theme:'yellow'};
   const team={id:1,name:'Команда',members:[{id:1,nickname:'Тест',captain:true}],captain_id:1,progress:0,requests:[],description:'Описание'};
   const context={h,hid:1,user,team,cases:[],criteria:[],events:[h],notes:[],revision:0,theme:'yellow',go:()=>{},run:()=>{},form:()=>{},setHid:()=>{},setTheme:()=>{},setUser:()=>{},onLogin:()=>{}};
-  for(const name of names){renderToString(React.createElement(components[name],{...context,channel:'team',data:{items:[]},status:'todo'}));console.log('OK',name)}
+  const cityTeam={...team,style:'tower',stage:'building',floors:3,total:8,done:4,progress:50,capacity:5,recruiting:true,case_title:'Городской сервис',project:null,can_customize:true,showcase:false};
+  const cityData={items:[cityTeam],my_team_id:1,results_published:false,summary:{teams:1,members:1,tasks_done:4,submitted:0}};
+  for(const name of names){renderToString(React.createElement(components[name],{...context,team:cityTeam,channel:'team',data:name==='CityScene'?cityData:{items:[]},status:'todo',go:()=>{}}));console.log('OK',name)}
   renderToString(React.createElement(components.SubmissionPage,{...context,team:{...team,submission:{id:1,code:'X7Q2',title:'Сданный проект',description:'Решение',submitted_at:date,github:'https://github.com/pallets/flask',demo:'https://example.com',presentation_id:1}}}));
   const draw=(props)=>renderToString(React.createElement(components.DashboardView,{...context,...props}));
   const empty=draw({tasks:{items:[]},materials:{items:[]},schedule:{items:[]}});
@@ -66,6 +68,18 @@ try{
   const cover=renderToString(React.createElement(components.HackathonImage,{event:{cover:'/hackathons/green.svg'}}));
   if(!cover.includes('/hackathons/green.svg'))throw Error('Cover image missing');
   console.log('OK bundled image and populated/empty board states');
-  console.log(`Passed: ${names.length+18} render cases. Browser QA remains separate.`);
+  for(const style of ['workshop','tower','lab'])for(const stage of ['plot','foundation','building','submitted']){
+    const html=renderToString(React.createElement(components.CityBuilding,{team:{...cityTeam,style,stage,floors:5}}));
+    if(!html.includes('city-building')||html.includes('NaN'))throw Error('Invalid city building '+style+' '+stage);
+  }
+  const scene=renderToString(React.createElement(components.CityScene,{data:cityData,go:()=>{}}));
+  if(!scene.includes('Команда')||!scene.includes('К задачам')||!scene.includes('Архитектура'))throw Error('City detail/actions missing');
+  if(scene.includes('https://'))throw Error('Unpublished city must not contain project links');
+  const emptyCity=renderToString(React.createElement(components.CityScene,{data:{...cityData,items:[],my_team_id:null},go:()=>{}}));
+  if(!emptyCity.includes('Создать команду'))throw Error('Empty city needs create-team action');
+  const gallery=renderToString(React.createElement(components.CityDetail,{team:{...cityTeam,can_customize:false,stage:'submitted',project:{title:'Выставка',description:'Открытый проект',demo:'https://example.com/exhibit'}},resultsPublished:true,go:()=>{}}));
+  if(!gallery.includes('https://example.com/exhibit')||!gallery.includes('Открыть демо'))throw Error('Published exhibition link missing');
+  console.log('OK city: 12 building states, captain controls, empty city, exhibition');
+  console.log(`Passed: ${names.length+33} render cases. Browser QA remains separate.`);
  }finally{await rm(modulePath,{force:true})}
 }finally{await rm(dir,{recursive:true,force:true})}

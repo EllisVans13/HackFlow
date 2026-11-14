@@ -76,6 +76,8 @@ class Team(db.Model):
     captain_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, default='')
+    city_style = db.Column(db.String(20), nullable=False, default='workshop', server_default='workshop')
+    city_showcase = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     code = db.Column(db.String(32), unique=True, nullable=False)
     open = db.Column(db.Boolean, default=True, nullable=False)
     case_id = db.Column(db.Integer, db.ForeignKey('case.id'))

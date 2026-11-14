@@ -253,6 +253,28 @@ def admissions(hid):
 def teams(hid):
     require_admission(get(Hackathon,hid)); return jsonify(items=[team_data(t) for t in Team.query.filter_by(hackathon_id=hid)])
 
+@api.get('/hackathons/<int:hid>/city')
+@login_required
+def city(hid):
+    h=get(Hackathon,hid); require_admission(h)
+    if not participant_account(current_user) and not organizer(hid) and not h.results_published:
+        abort(403,'До публикации результатов город доступен участникам и организатору этого хакатона.')
+    from .city import city_data
+    return jsonify(city_data(h,current_user,participant_account(current_user)))
+
+@api.patch('/teams/<int:tid>/city')
+@login_required
+def customize_city(tid):
+    t=get(Team,tid);require_admission(get(Hackathon,t.hackathon_id));captain(t);d=body()
+    from .city import STYLES
+    if 'style' in d:
+        if d['style'] not in STYLES:abort(400,'Выберите мастерскую, башню или лабораторию.')
+        t.city_style=d['style']
+    if 'showcase' in d:
+        if not isinstance(d['showcase'],bool):abort(400,'Ожидается логическое значение.')
+        t.city_showcase=d['showcase']
+    activity('city.customize');commit();return jsonify(ok=True)
+
 @api.post('/hackathons/<int:hid>/teams')
 @login_required
 def create_team(hid):
