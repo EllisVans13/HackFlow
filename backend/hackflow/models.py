@@ -285,6 +285,26 @@ class PersonalResult(db.Model):
     place = db.Column(db.Integer, nullable=False)
     __table_args__ = (UniqueConstraint('user_id','hackathon_id'),)
 
+class AwardCertificate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(32), nullable=False, unique=True)
+    hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    result_id = db.Column(db.Integer, db.ForeignKey('personal_result.id', ondelete='CASCADE'), nullable=False)
+    recipient_name = db.Column(db.String(64), nullable=False)
+    team_name = db.Column(db.String(100), nullable=False)
+    event_title = db.Column(db.String(200), nullable=False)
+    organizer_name = db.Column(db.String(64), nullable=False)
+    place = db.Column(db.Integer, nullable=False)
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
+    issued_at = db.Column(db.DateTime, nullable=False, default=now)
+    revoked_at = db.Column(db.DateTime)
+    __table_args__ = (
+        CheckConstraint('place BETWEEN 1 AND 3', name='certificate_podium_place'),
+        db.Index('uq_current_certificate', 'hackathon_id', 'user_id', unique=True,
+                 postgresql_where=db.text('revoked_at IS NULL'), sqlite_where=db.text('revoked_at IS NULL')),
+    )
+
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     actor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)

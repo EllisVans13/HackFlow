@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Проверка диплома · HackFlow</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:36px 20px;background:#f4f2ec;color:#223040;font:15px/1.6 system-ui,sans-serif}main{max-width:620px;margin:5vh auto;background:#fffefb;border:1px solid #deded5;border-radius:22px;overflow:hidden;box-shadow:0 18px 60px #2230400c}header{background:#223040;color:#f4eeda;padding:24px 30px;font-size:22px;font-weight:700;letter-spacing:-1px}.body{padding:30px}.status{display:inline-block;border-radius:20px;background:#e9f3ed;color:#326449;padding:6px 12px;font-size:12px}.status.invalid{background:#f7e9e6;color:#934b40}h1{font:32px/1.3 Georgia,serif;margin:20px 0 8px;overflow-wrap:anywhere}.event{color:#68757c;margin:0 0 24px;overflow-wrap:anywhere}dl{margin:0}dl>div{display:grid;grid-template-columns:150px 1fr;gap:14px;border-top:1px solid #ebeae2;padding:14px 0}dt{color:#737e84;font-size:13px}dd{margin:0;overflow-wrap:anywhere}.note{color:#737e84;font-size:12px;margin-top:20px}a{color:#6d5935}footer{border-top:1px solid #ebeae2;padding:18px 30px;font-size:12px;color:#737e84}@media(max-width:480px){body{padding:18px 12px}main{margin:0}.body{padding:24px}dl>div{grid-template-columns:1fr;gap:4px}h1{font-size:28px}}
+</style></head><body><main><header>hackflow</header><div class="body">
+<span class="status {{ '' if valid else 'invalid' }}">{{ 'Диплом подтверждён' if valid else 'Диплом недействителен' }}</span>
+{% if cert.is_demo %}<p class="note">Демонстрационный документ</p>{% endif %}
+<h1>{{ cert.recipient_name }}</h1><p class="event">{{ cert.event_title }}</p>
+<dl><div><dt>Награда</dt><dd>{{ roman }} место</dd></div><div><dt>Команда</dt><dd>{{ cert.team_name }}</dd></div><div><dt>Организатор</dt><dd>{{ cert.organizer_name }}</dd></div><div><dt>Номер диплома</dt><dd>{{ number }}</dd></div></dl>
+{% if not valid %}<p class="note">Результаты были изменены или ещё не опубликованы окончательно. Актуальный диплом доступен участнику в профиле.</p>{% endif %}
+</div><footer>Проверка документа HackFlow · <a href="/#hackathons">Открыть платформу</a></footer></main></body></html>

@@ -44,6 +44,8 @@ def create_app(config=None):
     from .api import api
     from .cli import register_commands
     app.register_blueprint(api,url_prefix='/api')
+    from .certificate_api import certificates_api
+    app.register_blueprint(certificates_api,url_prefix='/api')
     register_commands(app)
 
     @login.user_loader
