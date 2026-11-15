@@ -145,7 +145,7 @@ def publish_results(h):
             else:
                 result.team_name=row['team']; result.score=row['score']; result.place=row['place']; result.case_title=case.title if case else ''
     h.results_published=True; h.status='completed'
-    if h.peer_enabled:h.peer_published=True
+    h.peer_published=True
     db.session.flush()
     from .certificates import sync_awards
     sync_awards(h)

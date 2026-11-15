@@ -215,15 +215,18 @@ def test_peer_review_self_assignment_and_official_rating_independent(client,app)
     sid=submit(client); prepare(client,sid)
     login(client,'participant'); assert client.post('/api/hackathons/1/teams',json={'name':'Рецензенты'}).status_code==201
     login(client,'organizer')
-    assert client.post('/api/hackathons/1/peer',json={'team_id':1,'submission_id':sid}).status_code==400
-    assert client.post('/api/hackathons/1/peer',json={'team_id':2,'submission_id':sid}).status_code==200
+    assert client.post('/api/hackathons/1/peer',json={'team_id':2,'submission_id':sid}).status_code==404
+    # A historical assignment remains usable without the removed management API.
+    with app.app_context():
+        db.session.add(PeerAssignment(team_id=2,submission_id=sid));db.session.commit()
     login(client,'participant')
     with app.app_context(): values={str(x.id):x.maximum for x in Criterion.query.filter_by(hackathon_id=1)}
     assert client.post(f'/api/peer/{sid}',json={'scores':values,'comment':'Отличная работа'}).status_code==201
     assert client.post(f'/api/peer/{sid}',json={'scores':values,'comment':'Второй отзыв'}).status_code==409
     assert client.get('/api/hackathons/1/peer').json['results']==[]
     assert client.get('/api/profile').json['rating']==0
-    login(client,'organizer'); assert client.post('/api/hackathons/1/peer/publish',json={}).status_code==200
+    score(client,sid)
+    login(client,'organizer'); assert client.post('/api/hackathons/1/publish',json={}).status_code==200
     login(client,'participant'); assert client.get('/api/hackathons/1/peer').json['results'][0]['score']==100
 
 

@@ -754,29 +754,18 @@ def publish(hid):
         if not assignments or any(not JuryScore.query.filter_by(submission_id=s.id,user_id=a.user_id).first() for a in assignments): abort(409,'Не все назначенные проверки завершены.')
     publish_results(h); notify_event(hid,'Результаты опубликованы',h.title); audit('results.publish',{'hackathon':hid}); commit(); return jsonify(items=ranking(h))
 
-@api.route('/hackathons/<int:hid>/peer',methods=['GET','POST'])
+@api.get('/hackathons/<int:hid>/peer')
 @login_required
 def peer(hid):
+    require_participant()
     h=get(Hackathon,hid); require_admission(h); t=member_team(hid)
-    if request.method=='POST':
-        h=Hackathon.query.filter_by(id=hid).with_for_update().populate_existing().one()
-        require_organizer(hid)
-        if h.results_published or h.peer_published:abort(409,'Этап оценивания уже закрыт.')
-        d=body(); target=get(Submission,integer(d.get('submission_id'))); team=get(Team,integer(d.get('team_id')))
-        if get(Team,target.team_id).hackathon_id!=hid or team.hackathon_id!=hid or target.team_id==team.id: abort(400,'Нельзя назначить собственный проект или проект другого события.')
-        if not target.anonymous_ready: abort(400,'Сначала подготовьте обезличенные материалы.')
-        if h.peer_enabled:
-            if not target.anonymous_file_id:abort(400,'Подготовьте обезличенный PDF.')
-            if not Submission.query.filter_by(team_id=team.id).first():abort(400,'Рецензент должен сдать собственный проект.')
-            if PeerAssignment.query.filter_by(submission_id=target.id).count()>=3 or PeerAssignment.query.filter_by(team_id=team.id).count()>=3:abort(409,'Лимит: три рецензента и три работы на команду.')
-        db.session.add(PeerAssignment(team_id=team.id,submission_id=target.id)); commit(); return jsonify(ok=True)
     rows=[]
     if t:
         for a in PeerAssignment.query.filter_by(team_id=t.id):
             s=get(Submission,a.submission_id); review=PeerReview.query.filter_by(team_id=t.id,submission_id=s.id).first()
             rows.append({'id':s.id,'code':s.code,'text':s.anonymous_text,'reviewed':review is not None,'material_url':f'/api/peer/{s.id}/material' if s.anonymous_file_id else None})
     votes=[]
-    if h.peer_published or organizer(hid):
+    if h.peer_published:
         for sid,avg in db.session.query(PeerReview.submission_id,func.avg(PeerReview.total)).join(Submission,PeerReview.submission_id==Submission.id).join(Team,Submission.team_id==Team.id).filter(Team.hackathon_id==hid).group_by(PeerReview.submission_id).all(): votes.append({'code':get(Submission,sid).code,'score':round(avg,2)})
         votes.sort(key=lambda v:-v['score'])
     own=Submission.query.filter_by(team_id=t.id).first() if t else None
@@ -785,21 +774,14 @@ def peer(hid):
 @api.post('/peer/<int:sid>')
 @login_required
 def peer_review(sid):
-    s=get(Submission,sid); hid=get(Team,s.team_id).hackathon_id; h=get(Hackathon,hid); t=member_team(hid)
+    require_participant()
+    s=get(Submission,sid); hid=get(Team,s.team_id).hackathon_id; h=get(Hackathon,hid); require_admission(h); t=member_team(hid)
     if h.peer_enabled and h.status!='review':abort(403,'Этап Peer Review ещё не открыт.')
     if not t: abort(403,'Сначала вступите в команду.')
     captain(t)
     if s.team_id==t.id or not PeerAssignment.query.filter_by(team_id=t.id,submission_id=sid).first() or h.peer_published or h.results_published: abort(403,'Отзыв недоступен.')
     scores,total,comment=validate_scores(body(),hid)
     db.session.add(PeerReview(team_id=t.id,submission_id=sid,scores=scores,total=total,comment=comment)); activity('peer.review'); commit(); return jsonify(ok=True),201
-
-@api.post('/hackathons/<int:hid>/peer/publish')
-@login_required
-def peer_publish(hid):
-    h=get(Hackathon,hid); require_organizer(hid)
-    from .peer_assessment import assert_peer_complete
-    assert_peer_complete(h)
-    h.peer_published=True; audit('peer.publish',{'hackathon':hid}); commit(); return jsonify(ok=True)
 
 @api.route('/hackathons/<int:hid>/appeals',methods=['GET','POST'])
 @login_required

@@ -28,7 +28,7 @@
 | Консультации | GET/POST /teams/:id/consultation; POST /teams/:id/consultation/assign; GET /expert/consultations |
 | Обратная связь | GET /expert/assignments; GET/POST /submissions/:id/feedback; GET /hackathons/:id/experts |
 | Рейтинг | GET /hackathons/:id/ranking; POST /hackathons/:id/publish; GET /ratings |
-| Peer Review | GET/POST /hackathons/:id/peer; POST /peer/:submission; POST /hackathons/:id/peer/publish |
+| Peer Review (только участники события) | GET /hackathons/:id/peer; POST /peer/:submission; GET /peer/:submission/material |
 | Апелляции | GET/POST /hackathons/:id/appeals; PATCH /appeals/:id |
 | Профиль | GET/PATCH /profile |
 | Уведомления | GET /notifications; POST /notifications/read |
@@ -115,13 +115,15 @@ DELETE /api/hackathons/:id/jury-members/:user — снять жюри своег
 ## Взвешенное оценивание и встречи (a18)
 
 - Новые мероприятия используют peer_enabled=true: итог = 0.8 × среднее жюри + 0.2 × среднее трёх команд. Сохранены legacy-мероприятия с прежней схемой. XP = официальный итог × коэффициент сложности (0.7 / 1.5 / 2.4).
-- POST /api/hackathons/:id/peer/distribute — организатор, минимум четыре сданных проекта с anonymous_ready и anonymous_file_id. Ровно три входящие и исходящие назначения, без самооценки; существующие назначения сохраняются.
-- GET /api/hackathons/:id/peer/progress — готовность оценок организатору.
+- PATCH /api/hackathons/:id со status=review — обычное управление мероприятием организатором. Сервер автоматически распределяет минимум четыре сданных проекта с anonymous_ready и anonymous_file_id. Ровно три входящие и исходящие назначения, без самооценки; существующие назначения сохраняются.
+- Ручные endpoints /peer/distribute, /peer/progress, /peer/publish и POST /hackathons/:id/peer удалены. Отдельного кабинета Peer Review у сотрудников нет. Этап закрывается при публикации официальных результатов.
 - POST /api/submissions/:id/anonymous-file — организатор, multipart file PDF + confirmed=true. Очищает метаданные/аннотации; видимое содержание проверяет организатор. После оценок подмена запрещена.
-- GET /api/peer/:id/material — только член назначенной команды или организатор; ?download=1 для скачивания.
+- GET /api/peer/:id/material — только зарегистрированный участник из назначенной команды; ?download=1 для скачивания.
 - GET /api/jury/:id/material — только назначенное анонимное жюри.
-- POST /api/peer/:id — один отзыв капитана назначенной команды, критерии из 100. Публикация official/peer блокируется до трёх разных командных оценок каждой работы. Повторный отзыв и самооценка запрещены.
+- POST /api/peer/:id — один отзыв капитана назначенной команды, критерии из 100. Публикация официальных итогов блокируется до трёх разных командных оценок каждой работы. Повторный отзыв и самооценка запрещены.
 - Рейтинг содержит jury_score/peer_score, jury_component/peer_component, peer_count/peer_enabled и итог score из 100.
 - Schedule возвращает/принимает duration_minutes (5–1440), provider (yandex/zoom/link/offline), starts_at ISO8601 с часовым поясом или UTC, url. Внешние комнаты создаются пользователем в сервисе; API HackFlow их не создаёт.
 - Новая глобальная роль expert: назначенные проекты/рекомендации и личные настройки, без участия/оценок/управления.
 - User.is_demo ограничивает публичного демоадминистратора демоданными. Резервированный домен demo.hackflow.test нельзя использовать для веб-регистрации. Демоstaff не назначается на реальные проекты.
+
+Peer Review проверяет роль участника и регистрацию на конкретный хакатон на backend. Событийное жюри с глобальной ролью participant также получает 403. GET /api/submissions/:id/anonymous-file — предварительный просмотр подготовленного PDF в кабинете организатора; GET /api/jury/:id/material — собственная назначенная проверка жюри. Эти служебные пути не открывают Peer Review.
