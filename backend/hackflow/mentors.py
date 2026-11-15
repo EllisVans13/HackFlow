@@ -89,7 +89,8 @@ def restrict_mentor_api():
     read_only={'api.health','api.me','api.csrf_token','api.profile','api.media_download',
                'api.hackathons','api.hackathon','api.teams','api.team_detail','api.tasks',
                'api.messages','api.materials','api.schedule','api.deadlines','api.download',
-               'api.notifications','mentors.my_teams','mentors.workspace'}
+               'api.notifications','mentors.my_teams','mentors.workspace',
+               'public_results.archive','public_results.results'}
     editable={'api.login','api.logout','api.forgot','api.reset','api.edit_profile',
               'api.avatar_upload','api.read_notifications','api.consultation','api.feedback'}
     if request.endpoint in editable or request.method in ('GET','HEAD') and request.endpoint in read_only:
