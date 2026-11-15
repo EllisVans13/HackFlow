@@ -4,7 +4,7 @@ import {Palette,ChevronDown,Check,Snowflake,LoaderCircle} from 'lucide-react';
 const themes=[
  {id:'yellow',name:'Чёрно-жёлтая',caption:'Графит и тёплый жёлтый'},
  {id:'purple',name:'Фиолетовая',caption:'Светлая и спокойная'},
- {id:'holiday',name:'Новогодняя',caption:'Зимний вечер и огни'},
+ {id:'holiday',name:'Новогодняя',caption:'Клюква, хвоя и огни'},
 ];
 
 export function ThemeSwitcher({theme='holiday',onSelect,busy=false,snowEnabled=true,onSnowChange}){
