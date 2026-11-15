@@ -99,3 +99,14 @@ DELETE /api/hackathons/:id/jury-members/:user — снять жюри своег
 Поле verify_url диплома указывает на `/results/:hackathon_id?certificate=:public_id`. Публичный API `/api/public/hackathons/:id/results` принимает необязательный параметр certificate; для действительного документа этого мероприятия добавляет certificate {valid, number, recipient_name, team_name, organizer_name, place}. Для отозванного, неизвестного или чужого токена возвращает только {valid:false}. Без токена реквизиты дипломов не выдаются. Доступ к PDF по-прежнему ограничен. Старый HTML endpoint проверки токена сохранён.
 
 Из кабинета используется маршрут `/#results/:id`: сохраняется меню, кнопки возвращают в `#archive` и `#hackathons`. Публичный `/results/:id` открывается отдельно и имеет ссылку «Все хакатоны» на `/#hackathons`.
+
+
+## Проверка исходников и отчёт жюри
+
+- `POST /api/submissions/:id/codecheck` — организатор хакатона выполняет повторную проверку; результат сохраняется, назначенному жюри отправляется уведомление без авторских данных.
+- При `POST /api/submissions/:id/assign` с kind=jury проверка автоматически подготавливается.
+- `GET /api/jury/:id` включает codecheck с безопасным списком полей; только назначенное жюри и после ручного обезличивания.
+- `POST /api/jury/:id/codecheck {force:false}` — получить актуальную проверку; force=true принудительно пересчитывает. Те же проверки роли/назначения/обезличивания.
+- GET отчёта не запускает анализ и отмечает stale при изменении версии метода/корпуса (ID отправок и immutable source_id). Интерфейс запускает POST при открытии работы.
+- Статусы: not_started, completed, partial, insufficient_data, unavailable, error; stale вычисляется при выдаче. Есть checked_at, max_similarity (null если не вычислено), files_total/files_analyzed, compared_projects, matches с анонимным code и нормализованными fragments, skipped с анонимными причинами, limitations. Файлы, пути, авторы и внутренний corpus_signature в ответ жюри не включаются.
+- Расчёт оценок не зависит от CodeCheck. Уведомления дедуплицируются по отправке/корпусу/статусу/судье.

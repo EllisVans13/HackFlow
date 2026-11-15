@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace'];
+const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace','CodeReportView'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
  const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root};`;
@@ -59,6 +59,16 @@ try{
   const revoked=renderToString(React.createElement(components.CertificateVerification,{certificate:{valid:false}}));
   if(!revoked.includes('Диплом не подтверждён'))throw Error('Revoked QR must not look valid');
   console.log('OK internal archive navigation, return buttons and certificate QR states');
+  const codeReport=renderToString(React.createElement(components.CodeReportView,{data:{status:'completed',report:{max_similarity:92.5,files_analyzed:1,files_total:1,compared_projects:1,risk:'high',matches:[{code:'ANON42',similarity:92.5,fragments:[{tokens:40,left_offset:0,right_offset:2,normalized_excerpt:'ID NUM STR'}]}]}}}));
+  for(const label of ['92.5%','Максимальное сходство пары файлов','ANON42','ID NUM STR','не доказательство плагиата'])if(!codeReport.includes(label))throw Error('Missing jury code report information: '+label);
+  const staleCode=renderToString(React.createElement(components.CodeReportView,{data:{status:'stale',report:{matches:[{code:'OLD_MATCH',similarity:100,fragments:[]}]}}}));
+  if(!staleCode.includes('Отчёт устарел')||staleCode.includes('OLD_MATCH'))throw Error('Stale code report must not appear current');
+  for(const status of ['unavailable','error','insufficient_data']){
+    const html=renderToString(React.createElement(components.CodeReportView,{data:{status,report:{message:'Недостаточно данных'}}}));
+    if(html.includes('0%'))throw Error('Missing sources must not appear as zero plagiarism');
+  }
+  console.log('OK jury code similarity evidence and honest stale/unavailable states');
+
 
   for(const path of ['/results','/results/22']){
     globalThis.location.pathname=path;

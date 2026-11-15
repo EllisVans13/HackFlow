@@ -17,6 +17,7 @@ from sqlalchemy import func
 from . import limiter
 from .models import *
 from .mentoring import assigned_mentor, mentor_data
+from .plagiarism import ensure_analysis,report_payload
 from .services import digest, safe_url, audit_submission, github_repo, ranking, publish_results, run_codecheck, source_archive
 
 api=Blueprint('api',__name__)
@@ -574,7 +575,9 @@ def assign(sid):
     prior_mentor=AuditLog.query.filter(AuditLog.action=='mentor.assign',AuditLog.detail['team'].as_integer()==s.team_id,AuditLog.detail['mentor'].as_integer()==uid).first()
     if kind=='jury' and (get(Team,s.team_id).mentor_id==uid or prior_mentor or ConsultationAssignment.query.filter_by(team_id=s.team_id,user_id=uid).first() or ReviewAssignment.query.filter_by(user_id=uid,submission_id=sid,kind='expert').first()): abort(403,'Эксперт, знающий авторов, не может анонимно оценивать их проект.')
     if kind=='expert' and ReviewAssignment.query.filter_by(user_id=uid,submission_id=sid,kind='jury').first(): abort(403,'Жюри уже назначено на анонимное оценивание.')
-    db.session.add(ReviewAssignment(user_id=uid,submission_id=sid,kind=kind)); notify(uid,'Вам назначен проект для проверки',s.code); audit('review.assign',{'id':sid,'user':uid,'kind':kind}); commit(); return jsonify(ok=True)
+    db.session.add(ReviewAssignment(user_id=uid,submission_id=sid,kind=kind)); db.session.flush()
+    if kind=='jury': ensure_analysis(s,current_app.config['UPLOAD_FOLDER'])
+    notify(uid,'Вам назначен проект для проверки',s.code); audit('review.assign',{'id':sid,'user':uid,'kind':kind}); commit(); return jsonify(ok=True)
 
 @api.get('/hackathons/<int:hid>/jury')
 @login_required
@@ -599,7 +602,7 @@ def require_jury_submission(s):
 def jury_project(sid):
     s=get(Submission,sid); hid=require_jury_submission(s); score=JuryScore.query.filter_by(submission_id=sid,user_id=current_user.id).first(); report=CodeReport.query.filter_by(submission_id=sid).first()
     # Explicit allowlist. No team identifiers, original URLs or filenames.
-    return jsonify(project={'id':s.id,'code':s.code,'text':s.anonymous_text},criteria=[serialize(c,'id title maximum') for c in Criterion.query.filter_by(hackathon_id=hid)],score=serialize(score,'scores total comment') if score else None,codecheck={'status':report.status,'report':report.report} if report else {'status':'not_started'})
+    return jsonify(project={'id':s.id,'code':s.code,'text':s.anonymous_text},criteria=[serialize(c,'id title maximum') for c in Criterion.query.filter_by(hackathon_id=hid)],score=serialize(score,'scores total comment') if score else None,codecheck=report_payload(s,report))
 
 def validate_scores(d,hid):
     scores=d.get('scores'); criteria=Criterion.query.filter_by(hackathon_id=hid).all()
@@ -634,6 +637,16 @@ def codecheck(sid):
     s=get(Submission,sid); hid=get(Team,s.team_id).hackathon_id; require_organizer(hid)
     r=run_codecheck(s,current_app.config['UPLOAD_FOLDER']); audit('codecheck.run',{'id':sid}); notify_team(get(Team,s.team_id),'CodeCheck завершён',r.status); commit(); return jsonify(status=r.status,report=r.report)
 
+@api.post('/jury/<int:sid>/codecheck')
+@login_required
+def jury_codecheck(sid):
+    s=get(Submission,sid); require_jury_submission(s); d=body()
+    force=d.get('force',False)
+    if not isinstance(force,bool): abort(400,'Некорректный параметр повторной проверки.')
+    r=run_codecheck(s,current_app.config['UPLOAD_FOLDER']) if force else ensure_analysis(s,current_app.config['UPLOAD_FOLDER'])
+    audit('codecheck.jury',{'id':sid,'force':force}); commit()
+    return jsonify(**report_payload(s,r))
+
 @api.get('/submissions/<int:sid>/codecheck')
 @login_required
 def codecheck_report(sid):
@@ -641,7 +654,7 @@ def codecheck_report(sid):
     if event_role(t.hackathon_id,'jury'): require_jury_submission(s)
     else: team_access(t)
     r=CodeReport.query.filter_by(submission_id=sid).first(); ai=AIReport.query.filter_by(submission_id=sid).first()
-    return jsonify(status=r.status if r else 'not_started',report=r.report if r else {},ai=ai.observations if ai else None)
+    return jsonify(**report_payload(s,r),ai=ai.observations if ai else None)
 
 @api.get('/hackathons/<int:hid>/experts')
 @login_required
