@@ -96,7 +96,7 @@ def test_migration_from_main_schema(tmp_path):
             upgrade(directory=directory,revision='55e9b1bb7a5d')
             db.session.execute(text("INSERT INTO \"user\" (id,email,nickname,password_hash,role,blocked,created_at) VALUES (1,'migration@example.com','Сохранённый','unused','participant',false,now())"));db.session.commit()
             upgrade(directory=directory)
-            assert db.session.execute(text('SELECT version_num FROM alembic_version')).scalar()=='adele_awards'
+            assert db.session.execute(text('SELECT version_num FROM alembic_version')).scalar()=='adele_compat_heads'
             assert db.session.execute(text('SELECT nickname FROM "user" WHERE id=1')).scalar()=='Сохранённый'
             assert db.session.execute(text('SELECT count(*) FROM award')).scalar()==0
             db.session.remove();db.engine.dispose()
