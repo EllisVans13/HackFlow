@@ -39,7 +39,7 @@ def test_staff_and_levels(client,app):
     with app.app_context():
         enrich(TEST_PASSWORD);before=Hackathon.query.count();xp=experience(1)['xp'];assert xp>0
         enrich(TEST_PASSWORD);assert Hackathon.query.count()==before;assert experience(1)['xp']==xp
-        r=PersonalResult.query.filter_by(user_id=1).first();r.score-=10;db.session.commit();assert experience(1)['xp']==xp
+        r=PersonalResult.query.filter_by(user_id=1).first();multiplier={'easy':0.7,'medium':1.5,'hard':2.4}[db.session.get(Hackathon,r.hackathon_id).difficulty];r.score-=10;db.session.commit();assert experience(1)['xp']==round(xp-10*multiplier,2)
 
 def test_admin_user_status_and_event_management(client):
     login(client,'participant')
@@ -104,8 +104,8 @@ def test_clear_level_breakdown(app):
     with app.app_context():
         enrich(TEST_PASSWORD);data=experience(1)
         assert data['thresholds'][1]==250
-        assert sum(x['xp'] for x in data['earned'])==data['xp']
-        assert all(x['xp']=={'easy':70,'medium':150,'hard':240}[x['difficulty']] for x in data['earned'])
+        assert round(sum(x['xp'] for x in data['earned']),2)==data['xp']
+        assert all(x['xp']==round(x['score']*x['multiplier'],2) for x in data['earned'])
         assert data['remaining']==max(0,data['next']-data['xp'])
 
 def test_zero_start_and_level_boundaries(client,app):
@@ -114,7 +114,7 @@ def test_zero_start_and_level_boundaries(client,app):
         for i in range(3):
             h=Hackathon(title=f'Сложный {i}',difficulty='hard',approval='approved',status='completed',results_published=True,start_at=now()-timedelta(days=3),end_at=now()-timedelta(days=1),registration_deadline=now()-timedelta(days=4),submission_deadline=now()-timedelta(days=2))
             db.session.add(h);db.session.flush()
-            db.session.add(PersonalResult(user_id=1,hackathon_id=h.id,team_name='Тест',case_title='Тест',score=80,place=1));db.session.commit()
+            db.session.add(PersonalResult(user_id=1,hackathon_id=h.id,team_name='Тест',case_title='Тест',score=100,place=1));db.session.commit()
             assert experience(1)['xp']==240*(i+1)
             assert experience(1)['level']==[0,1,2][i]
     login(client,'participant')
@@ -237,3 +237,28 @@ def test_showcase_covers_are_bundled_and_uploaded_cover_wins(app,client):
         h.cover='/api/media/organizer-custom-cover';hid=h.id;db.session.commit()
     updated=next(h for h in client.get('/api/hackathons').json['items'] if h['id']==hid)
     assert updated['cover']=='/api/media/organizer-custom-cover'
+
+
+def test_score_based_xp_rounding_visibility_and_boundaries(app):
+    with app.app_context():
+        assert experience(1)['xp']==0
+        results=[]
+        for difficulty,expected in [('easy',61.6),('medium',132),('hard',211.2)]:
+            h=Hackathon(title='XP '+difficulty,difficulty=difficulty,approval='approved',status='completed',results_published=True,start_at=now()-timedelta(days=3),end_at=now()-timedelta(days=1),registration_deadline=now()-timedelta(days=4),submission_deadline=now()-timedelta(days=2))
+            db.session.add(h);db.session.flush()
+            r=PersonalResult(user_id=1,hackathon_id=h.id,team_name='Тест',case_title='Тест',score=88,place=1)
+            db.session.add(r);db.session.commit();results.append((h,r))
+            assert next(x for x in experience(1)['earned'] if x['hackathon_id']==h.id)['xp']==expected
+        assert experience(1)['xp']==404.8
+        assert experience(1)['xp']==404.8
+        h,r=results[0];r.score=88.15;db.session.commit()
+        assert next(x for x in experience(1)['earned'] if x['hackathon_id']==h.id)['xp']==61.71
+        h.results_published=False;db.session.commit();assert experience(1)['xp']==343.2
+        h.results_published=True;h.approval='pending';db.session.commit();assert experience(1)['xp']==343.2
+        h.approval='approved';h.status='review';db.session.commit();assert experience(1)['xp']==343.2
+        h.status='completed';db.session.commit();assert experience(1)['xp']==404.91
+        results[0][1].score=100;results[1][1].score=100;results[2][1].score=12.5
+        db.session.commit();assert experience(1)['xp']==250;assert experience(1)['level']==1
+        results[2][1].score=12.49;db.session.commit()
+        level=experience(1);assert level['xp']==249.98;assert level['level']==0
+        assert level['remaining']==0.02;assert level['progress']<100

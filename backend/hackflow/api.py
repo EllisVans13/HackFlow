@@ -1,4 +1,5 @@
 import csv
+from decimal import Decimal, ROUND_HALF_UP
 import io
 import json
 import re
@@ -1027,13 +1028,20 @@ def learning_analytics(hid):
 
 def experience(uid):
     rows=PersonalResult.query.join(Hackathon,PersonalResult.hackathon_id==Hackathon.id).filter(PersonalResult.user_id==uid,Hackathon.results_published.is_(True),Hackathon.status=='completed').all()
-    rewards={'easy':70,'medium':150,'hard':240}
-    rows=[r for r in rows if get(Hackathon,r.hackathon_id).approval=='approved']
-    xp=sum(rewards[get(Hackathon,r.hackathon_id).difficulty] for r in rows)
+    multipliers={'easy':Decimal('0.7'),'medium':Decimal('1.5'),'hard':Decimal('2.4')}
+    earned=[]; total=Decimal('0')
+    for result in rows:
+        h=get(Hackathon,result.hackathon_id)
+        if h.approval!='approved':
+            continue
+        multiplier=multipliers[h.difficulty]
+        reward=(Decimal(str(result.score))*multiplier).quantize(Decimal('0.01'),rounding=ROUND_HALF_UP)
+        total+=reward
+        earned.append({'hackathon_id':h.id,'title':h.title,'score':result.score,'difficulty':h.difficulty,'multiplier':float(multiplier),'xp':float(reward)})
     thresholds=[0,250,700,1400,2500,4000,6000]
-    index=max(i for i,t in enumerate(thresholds) if xp>=t)
+    index=max(i for i,t in enumerate(thresholds) if total>=t)
     lower=thresholds[index]; upper=thresholds[index+1] if index+1<len(thresholds) else None
-    return {'earned':[{'hackathon_id':r.hackathon_id,'title':get(Hackathon,r.hackathon_id).title,'score':r.score,'difficulty':get(Hackathon,r.hackathon_id).difficulty,'xp':rewards[get(Hackathon,r.hackathon_id).difficulty]} for r in rows],'thresholds':thresholds,'current':xp-lower,'required':upper-lower if upper else None,'remaining':max(0,upper-xp) if upper else 0,'level':index,'xp':xp,'next':upper,'progress':round(100*(xp-lower)/(upper-lower)) if upper else 100}
+    return {'earned':earned,'thresholds':thresholds,'current':float(total-lower),'required':upper-lower if upper else None,'remaining':float(max(0,upper-total)) if upper else 0,'level':index,'xp':float(total),'next':upper,'progress':min(99,round(100*(total-lower)/(upper-lower))) if upper else 100}
 
 @api.post('/hackathons/<int:hid>/register')
 @login_required

@@ -64,7 +64,7 @@ def test_weighted_scores_wait_for_three_teams_and_issue_diplomas(app,client,scen
     assert client.post(f'/api/hackathons/{hid}/publish',json={}).status_code==200
     with app.app_context():assert AwardCertificate.query.filter_by(hackathon_id=hid).count()==3
     demo_login(client,'captain')
-    assert client.get('/api/profile').json['level']['xp']==150
+    assert client.get('/api/profile').json['level']['xp']==132
     client.post('/api/auth/logout')
     public=client.get(f'/api/public/hackathons/{hid}/results').json
     assert public['items'][0]['score']==88 and public['items'][0]['peer_count']==3
