@@ -126,3 +126,49 @@ def test_long_cyrillic_awards_render_as_one_page_with_embedded_fonts(place):
         organizer_name='Ассоциация организаторов студенческих технологических соревнований',place=place,is_demo=False,issued_at=now())
     pdf=certificate_pdf(cert,'https://hackflow.example/api/certificates/'+('a'*32)+'/verify')
     assert pdf.startswith(b'%PDF-') and b'/Count 1' in pdf and b'/FontFile2' in pdf
+
+
+def test_pdf_qr_leads_to_public_results_with_specific_certificate(app,client,competition,monkeypatch):
+    from urllib.parse import urlsplit,parse_qs
+    import hackflow.certificate_api as certificate_api
+    publish(client);login(client,'participant')
+    app.config['PUBLIC_URL']='https://hackflow.example'
+    item=client.get('/api/profile/certificates').json['items'][0]
+    parsed=urlsplit(item['verify_url'])
+    assert parsed.netloc=='hackflow.example' and parsed.path=='/results/1'
+    assert parse_qs(parsed.query)=={'certificate':[item['id']]}
+    captured=[]
+    monkeypatch.setattr(certificate_api,'certificate_pdf',lambda cert,url:(captured.append(url) or b'%PDF-test'))
+    assert client.get(item['download_url']).status_code==200
+    assert captured==[item['verify_url']]
+    client.post('/api/auth/logout')
+    result=client.get('/api/public/hackathons/1/results?'+parsed.query)
+    assert result.status_code==200 and result.json['certificate']['valid'] is True
+    assert result.json['certificate']['recipient_name']=='Александр'
+    assert result.json['items'][0]['place']==1
+    assert '@hackflow.test' not in result.get_data(as_text=True)
+    legacy=client.get('/api/certificates/'+item['id']+'/verify').get_data(as_text=True)
+    assert 'href="/results/1"' in legacy and 'Все хакатоны' in legacy
+
+
+def test_qr_validation_rejects_revoked_wrong_event_and_unknown_tokens(app,client,competition):
+    publish(client);login(client,'participant')
+    token=client.get('/api/profile/certificates').json['items'][0]['id']
+    with app.app_context():
+        other=Hackathon(title='Другие результаты',status='completed',results_published=True,
+            start_at=now(),end_at=now()+timedelta(days=3),registration_deadline=now(),submission_deadline=now()+timedelta(days=2))
+        db.session.add(other);db.session.flush();hid=other.id
+        cert=AwardCertificate.query.filter_by(public_id=token).one();cert.revoked_at=now();db.session.commit()
+    client.post('/api/auth/logout')
+    for event,query in [(1,token),(hid,token),(1,'0'*32),(1,'not-a-token')]:
+        response=client.get(f'/api/public/hackathons/{event}/results?certificate={query}')
+        assert response.status_code==200 and response.json['certificate']=={'valid':False}
+        assert 'recipient_name' not in response.get_data(as_text=True)
+
+
+def test_render_external_url_prevents_localhost_qr_on_cloud(app,client,competition,monkeypatch):
+    publish(client);login(client,'participant')
+    app.config['PUBLIC_URL']='http://localhost:8000'
+    monkeypatch.setenv('RENDER_EXTERNAL_URL','https://hackflow-test.onrender.com')
+    item=client.get('/api/profile/certificates').json['items'][0]
+    assert item['verify_url'].startswith('https://hackflow-test.onrender.com/results/1?certificate=')

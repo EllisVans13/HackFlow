@@ -92,3 +92,10 @@ DELETE /api/hackathons/:id/jury-members/:user — снять жюри своег
 - `/results` и `/results/:id` — React-страницы для гостей и всех аккаунтов.
 
 Внутренний `/api/hackathons/:id/ranking` сохранён для существующего рабочего интерфейса с прежними проверками входа/допуска. Публичные результаты читаются через отдельный public API.
+
+
+## QR диплома и возврат из результатов
+
+Поле verify_url диплома указывает на `/results/:hackathon_id?certificate=:public_id`. Публичный API `/api/public/hackathons/:id/results` принимает необязательный параметр certificate; для действительного документа этого мероприятия добавляет certificate {valid, number, recipient_name, team_name, organizer_name, place}. Для отозванного, неизвестного или чужого токена возвращает только {valid:false}. Без токена реквизиты дипломов не выдаются. Доступ к PDF по-прежнему ограничен. Старый HTML endpoint проверки токена сохранён.
+
+Из кабинета используется маршрут `/#results/:id`: сохраняется меню, кнопки возвращают в `#archive` и `#hackathons`. Публичный `/results/:id` открывается отдельно и имеет ссылку «Все хакатоны» на `/#hackathons`.

@@ -8,7 +8,7 @@ const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
 const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,Root};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root};`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
@@ -25,7 +25,7 @@ try{
   const user={id:1,nickname:'Тест',email:'test@example.com',role:'organizer',created_at:date,theme:'yellow'};
   const team={id:1,name:'Команда',members:[{id:1,nickname:'Тест',captain:true}],captain_id:1,progress:0,requests:[],description:'Описание'};
   const context={h,hid:1,user,team,cases:[],criteria:[],events:[h],notes:[],revision:0,theme:'yellow',go:()=>{},run:()=>{},form:()=>{},setHid:()=>{},setTheme:()=>{},setUser:()=>{},onLogin:()=>{}};
-  for(const page of ['team','kanban','jury','organizer','admin','submission','hackathons']){
+  for(const page of ['team','kanban','jury','organizer','admin','submission']){
     if(components.resolvePage(page,{role:'mentor'})!=='mentor')throw Error('Mentor route must stay in mentor workspace: '+page);
   }
   const learningItems=Object.entries({video:'Смотреть видео',presentation:'Открыть презентацию',document:'Открыть материал',link:'Открыть материал',webinar:'Подключиться',consultation:'Подключиться',assignment:'Задание выполнено'}).map(([kind,label],i)=>({id:i+1,kind,title:'Учебный материал '+i,topic:'Разработка',description:'Условие на русском языке',language:'ru',url:kind==='assignment'?'':'https://rutube.ru/video/example/',label}));
@@ -46,10 +46,24 @@ try{
   const resultsHtml=renderToString(React.createElement(components.ResultsTable,{data:{hackathon:{title:'Открытый итог'},items:[{place:1,team:'Первая команда',title:'Проект',score:91.5}],criteria:[{id:1,title:'Качество',maximum:100}],tie_rule:'Раньше сданный проект'}}));
   for(const text of ['Место','Первая команда','91,5','Баллы из 100'])if(!resultsHtml.includes(text))throw Error('Missing public ranking column: '+text);
   console.log('OK staff navigation hidden, archive available to mentors, public archive and places');
+  for(const role of ['admin','organizer','jury','mentor','participant']){
+    if(components.resolvePage('results/22',{role})!=='results')throw Error('Embedded results route must work for '+role);
+  }
+  if(components.resolvePage('hackathons',{role:'mentor'})!=='hackathons')throw Error('All hackathons button must work for mentor');
+  const embeddedArchive=renderToString(React.createElement(components.ArchiveCards,{items:[{id:22,title:'Итоги',end_at:date,results_published:true}],onOpen:()=>{}}));
+  if(embeddedArchive.includes('href="/results/22"')||!embeddedArchive.includes('<button'))throw Error('Cabinet archive must navigate within app');
+  const embeddedDetail=renderToString(React.createElement(components.ResultsDetail,{id:22,onBack:()=>{},onAllHackathons:()=>{}}));
+  if(!embeddedDetail.includes('Все хакатоны')||!embeddedDetail.includes('Прошедшие хакатоны')||embeddedDetail.includes('href="/results"'))throw Error('Embedded results must have internal back buttons');
+  const verified=renderToString(React.createElement(components.CertificateVerification,{certificate:{valid:true,recipient_name:'Мария',place:1,team_name:'Команда',organizer_name:'Анна',number:'HF-000001'}}));
+  if(!verified.includes('Диплом подтверждён')||!verified.includes('Мария'))throw Error('QR verification must display certificate');
+  const revoked=renderToString(React.createElement(components.CertificateVerification,{certificate:{valid:false}}));
+  if(!revoked.includes('Диплом не подтверждён'))throw Error('Revoked QR must not look valid');
+  console.log('OK internal archive navigation, return buttons and certificate QR states');
+
   for(const path of ['/results','/results/22']){
     globalThis.location.pathname=path;
     const publicHtml=renderToString(React.createElement(components.Root));
-    if(publicHtml.includes('С возвращением')||!publicHtml.includes('В HackFlow'))throw Error('Public results must render without the login app');
+    if(publicHtml.includes('С возвращением')||!publicHtml.includes('Все хакатоны'))throw Error('Public results must render without the login app');
   }
   globalThis.location.pathname='/';
 
