@@ -326,3 +326,16 @@ class TeamInvitation(db.Model):
     status = db.Column(db.String(20), nullable=False, default='pending')
     expires_at = db.Column(db.DateTime, nullable=False)
     __table_args__ = (UniqueConstraint('team_id','user_id',name='uq_team_invitation_recipient'),)
+
+class Award(db.Model):
+    kind = db.Column(db.String(20),nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'), nullable=False)
+    token = db.Column(db.String(64), nullable=False, unique=True)
+    recipient = db.Column(db.String(64), nullable=False)
+    event_title = db.Column(db.String(200), nullable=False)
+    organizers = db.Column(db.Text, nullable=False)
+    place = db.Column(db.Integer)
+    issued_at = db.Column(db.DateTime, nullable=False, default=now)
+    __table_args__ = (UniqueConstraint('user_id','hackathon_id','kind',name='uq_award_user_event_kind'),)

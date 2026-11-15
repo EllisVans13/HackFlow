@@ -6,6 +6,12 @@ from werkzeug.security import generate_password_hash
 from .models import *
 
 def register_commands(app):
+    @app.cli.command('issue-certificates')
+    def issue_certificates():
+        from .awards import issue_awards
+        for h in Hackathon.query.filter_by(results_published=True,status='completed'):issue_awards(h)
+        db.session.commit();click.echo('Документы для опубликованных результатов готовы.')
+
     @app.cli.command('reminders')
     def reminders():
         from .services import dispatch_reminders
