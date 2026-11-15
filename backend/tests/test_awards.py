@@ -69,3 +69,10 @@ def test_degrees_and_reissue_after_result_change(app):
         result.place=4;db.session.flush();issue_awards(h);db.session.commit()
         assert Award.query.filter_by(user_id=1,kind='diploma').count()==0
         assert Award.query.filter_by(user_id=1,kind='certificate').count()==1
+
+def test_own_document_section_is_accessible_for_every_role(client):
+    for role in ['participant','captain','organizer','jury','admin']:
+        login(client,role)
+        r=client.get('/api/profile/awards')
+        assert r.status_code==200,r.json
+        assert isinstance(r.json['items'],list)

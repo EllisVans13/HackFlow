@@ -1063,7 +1063,6 @@ def verify_award(token):
 @api.get('/profile/awards')
 @login_required
 def my_awards():
-    require_participant()
     from .awards import award_data
     rows=Award.query.join(Hackathon,Award.hackathon_id==Hackathon.id).filter(Award.user_id==current_user.id,Hackathon.results_published.is_(True),Hackathon.status=='completed').order_by(Award.issued_at.desc(),Award.kind)
     return jsonify(items=[award_data(a) for a in rows])
