@@ -71,6 +71,8 @@ class Case(db.Model):
     url = db.Column(db.String(500), default='')
 
 class Team(db.Model):
+    city_style = db.Column(db.String(20),nullable=False,default='workshop',server_default='workshop')
+    city_showcase = db.Column(db.Boolean,nullable=False,default=False,server_default=db.false())
     id = db.Column(db.Integer, primary_key=True)
     hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'), nullable=False, index=True)
     captain_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
