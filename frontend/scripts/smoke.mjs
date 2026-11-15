@@ -5,10 +5,10 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
+const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards};`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
@@ -25,6 +25,18 @@ try{
   const user={id:1,nickname:'Тест',email:'test@example.com',role:'organizer',created_at:date,theme:'yellow'};
   const team={id:1,name:'Команда',members:[{id:1,nickname:'Тест',captain:true}],captain_id:1,progress:0,requests:[],description:'Описание'};
   const context={h,hid:1,user,team,cases:[],criteria:[],events:[h],notes:[],revision:0,theme:'yellow',go:()=>{},run:()=>{},form:()=>{},setHid:()=>{},setTheme:()=>{},setUser:()=>{},onLogin:()=>{}};
+  for(const page of ['team','kanban','jury','organizer','admin','submission','hackathons']){
+    if(components.resolvePage(page,{role:'mentor'})!=='mentor')throw Error('Mentor route must stay in mentor workspace: '+page);
+  }
+  const learningItems=Object.entries({video:'Смотреть видео',presentation:'Открыть презентацию',document:'Открыть материал',link:'Открыть материал',webinar:'Подключиться',consultation:'Подключиться',assignment:'Задание выполнено'}).map(([kind,label],i)=>({id:i+1,kind,title:'Учебный материал '+i,topic:'Разработка',description:'Условие на русском языке',language:'ru',url:kind==='assignment'?'':'https://rutube.ru/video/example/',label}));
+  const learningHtml=renderToString(React.createElement(components.MaterialCards,{items:learningItems,c:context}));
+  for(const item of learningItems)if(!learningHtml.includes(item.label))throw Error('Missing learning action: '+item.kind);
+  if(!learningHtml.includes('noopener noreferrer')||!learningHtml.includes('На русском'))throw Error('Learning links/language must be explicit');
+  const mentorLearning=renderToString(React.createElement(components.MaterialCards,{items:learningItems,c:{...context,user:{...user,role:'mentor'}}}));
+  if(mentorLearning.includes('Материал изучен')||mentorLearning.includes('Задание выполнено'))throw Error('Mentor must not get participant completion actions');
+  const picker=renderToString(React.createElement(components.MentorPicker,{c:{...context,h:{...h,organizer:false},user:{...user,id:1}},team:{...team,captain_id:1,mentor:{id:9,nickname:'Ментор',skills:'React',bio:'Помогаю'}}}));
+  if(!picker.includes('Сменить ментора')||!picker.includes('React'))throw Error('Captain mentor choice missing');
+  console.log('OK dedicated mentor routes, captain picker and seven learning formats');
   const cityTeam={...team,style:'tower',stage:'building',floors:3,total:8,done:4,progress:50,capacity:5,recruiting:true,case_title:'Городской сервис',project:null,can_customize:true,showcase:false};
   const caseItem={id:9,title:'Удобный кампус',company:'Кампус',description:'Короткая постановка задачи.',requirements:'Полные условия задачи',expected:'Работающий прототип',url:'https://example.com/case'};
   const cityData={items:[cityTeam],my_team_id:1,results_published:false,summary:{teams:1,members:1,tasks_done:4,submitted:0}};
