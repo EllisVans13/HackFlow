@@ -110,3 +110,18 @@ DELETE /api/hackathons/:id/jury-members/:user — снять жюри своег
 - GET отчёта не запускает анализ и отмечает stale при изменении версии метода/корпуса (ID отправок и immutable source_id). Интерфейс запускает POST при открытии работы.
 - Статусы: not_started, completed, partial, insufficient_data, unavailable, error; stale вычисляется при выдаче. Есть checked_at, max_similarity (null если не вычислено), files_total/files_analyzed, compared_projects, matches с анонимным code и нормализованными fragments, skipped с анонимными причинами, limitations. Файлы, пути, авторы и внутренний corpus_signature в ответ жюри не включаются.
 - Расчёт оценок не зависит от CodeCheck. Уведомления дедуплицируются по отправке/корпусу/статусу/судье.
+
+
+## Взвешенное оценивание и встречи (a18)
+
+- Новые мероприятия используют peer_enabled=true: итог = 0.8 × среднее жюри + 0.2 × среднее трёх команд. Сохранены legacy-мероприятия с прежней схемой. XP по сложности отдельно.
+- POST /api/hackathons/:id/peer/distribute — организатор, минимум четыре сданных проекта с anonymous_ready и anonymous_file_id. Ровно три входящие и исходящие назначения, без самооценки; существующие назначения сохраняются.
+- GET /api/hackathons/:id/peer/progress — готовность оценок организатору.
+- POST /api/submissions/:id/anonymous-file — организатор, multipart file PDF + confirmed=true. Очищает метаданные/аннотации; видимое содержание проверяет организатор. После оценок подмена запрещена.
+- GET /api/peer/:id/material — только член назначенной команды или организатор; ?download=1 для скачивания.
+- GET /api/jury/:id/material — только назначенное анонимное жюри.
+- POST /api/peer/:id — один отзыв капитана назначенной команды, критерии из 100. Публикация official/peer блокируется до трёх разных командных оценок каждой работы. Повторный отзыв и самооценка запрещены.
+- Рейтинг содержит jury_score/peer_score, jury_component/peer_component, peer_count/peer_enabled и итог score из 100.
+- Schedule возвращает/принимает duration_minutes (5–1440), provider (yandex/zoom/link/offline), starts_at ISO8601 с часовым поясом или UTC, url. Внешние комнаты создаются пользователем в сервисе; API HackFlow их не создаёт.
+- Новая глобальная роль expert: назначенные проекты/рекомендации и личные настройки, без участия/оценок/управления.
+- User.is_demo ограничивает публичного демоадминистратора демоданными. Резервированный домен demo.hackflow.test нельзя использовать для веб-регистрации. Демоstaff не назначается на реальные проекты.

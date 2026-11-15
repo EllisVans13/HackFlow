@@ -38,7 +38,7 @@ def prepare_database():
     app=create_app()
     with app.app_context():
         upgrade(directory=str(ROOT/'migrations'))
-        if not User.query.filter_by(role='admin').first():
+        if not User.query.filter_by(role='admin',is_demo=False).first():
             email=os.environ.get('ADMIN_EMAIL','').strip().lower()
             password=os.environ.get('ADMIN_PASSWORD','')
             nickname=os.environ.get('ADMIN_NICKNAME','Администратор').strip()
@@ -59,6 +59,9 @@ def prepare_database():
             from hackflow.demo import enrich
             if not Hackathon.query.first():seed(password)
             enrich(password)
+        if os.environ.get('SEED_REVIEW_DEMO','true').lower()=='true':
+            from hackflow.review_demo import seed_review_demo
+            seed_review_demo()
         db.session.remove();db.engine.dispose()
 
 def server_command(port):

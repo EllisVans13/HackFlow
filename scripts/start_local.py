@@ -122,6 +122,8 @@ def prepare_app(port):
         result = app.test_cli_runner().invoke(args=['seed-demo', '--password', values['demo_password']])
         if result.exit_code:
             raise RuntimeError('Не удалось добавить демоданные: ' + result.output + str(result.exception or ''))
+        result=app.test_cli_runner().invoke(args=['seed-review-demo'])
+        if result.exit_code:raise RuntimeError('Ошибка демоданных Peer Review: '+result.output+str(result.exception or ''))
     return app, values
 
 def open_when_ready(url):

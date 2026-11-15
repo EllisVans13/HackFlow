@@ -17,7 +17,7 @@ def register_commands(app):
     @click.password_option(confirmation_prompt=True)
     def init_admin(email,nickname,password):
         """Создать первого администратора локально, без открытого API."""
-        if User.query.filter_by(role='admin').first(): raise click.ClickException('Администратор уже существует.')
+        if User.query.filter_by(role='admin',is_demo=False).first(): raise click.ClickException('Администратор уже существует.')
         if len(password)<12: raise click.ClickException('Пароль — минимум 12 символов.')
         db.session.add(User(email=email.lower(),nickname=nickname,role='admin',is_owner=True,password_hash=generate_password_hash(password)))
         db.session.commit(); click.echo('Администратор создан.')
@@ -35,6 +35,11 @@ def register_commands(app):
     def refresh_demo():
         from .demo import refresh_demo_content
         refresh_demo_content(); click.echo('Демонстрационный каталог обновлён. Пароли сохранены.')
+
+    @app.cli.command('seed-review-demo')
+    def seed_review_demo():
+        from .review_demo import seed_review_demo
+        seed_review_demo();click.echo('Демо Peer Review и аккаунты готовы. Доступы: README.')
 
     @app.cli.command('seed-learning')
     def seed_learning():

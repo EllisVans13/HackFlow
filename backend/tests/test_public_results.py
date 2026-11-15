@@ -43,7 +43,7 @@ def test_public_archive_and_places_available_to_every_role_without_admission(cli
     assert [r['place'] for r in rows]==[1,2,3]
     assert [r['score'] for r in rows]==[95,95,80]
     assert rows[0]['team']=='Код будущего'
-    assert all(set(r)=={'place','team','title','score','criteria'} for r in rows)
+    assert all(set(r)=={'place','team','title','score','criteria','jury_score','peer_score','jury_component','peer_component','peer_count','peer_enabled'} for r in rows)
     for secret in ['PRIVATE','private-presentation','SECRET-CODE','ANON-','@hackflow.test','user_id','presentation_id','github','submitted_at']:
         assert secret not in result.get_data(as_text=True)
 

@@ -44,16 +44,11 @@ def main():
         command('docker', 'compose', 'exec', '-T', 'app', 'flask', '--app', 'wsgi', 'seed-demo', '--password', password)
     command('docker', 'compose', 'exec', '-T', 'app', 'flask', '--app', 'wsgi', 'refresh-demo')
     print('\nHackFlow запущен: ' + URL)
-    print('Участник: participant@hackflow.test')
-    print('Капитан: captain@hackflow.test')
-    print('Организатор: organizer@hackflow.test')
-    print('Жюри: jury@hackflow.test')
-    print('Главный администратор: admin@hackflow.test (если первый админ создан демоскриптом)')
-    if empty:
-        print('Используйте пароль, заданный при заполнении базы.')
-    else:
-        print('Используйте пароль, заданный при первоначальном заполнении демобазы.')
-    print('Вход через ChatGPT не нужен. Код команды: HACKFLOW26')
+    print('Демовход: captain@demo.hackflow.test / HackFlow-Demo-2026!')
+    print('Другие команды: review2, review3, review4 @demo.hackflow.test')
+    print('Другие роли: participant, organizer, jury, mentor, expert, admin @demo.hackflow.test')
+    print('Общий публичный демопароль: HackFlow-Demo-2026!')
+    print('Демоадминистратор управляет только демоданными. Полный владелец: flask init-admin.')
     print('Остановка: docker compose down (данные сохраняются).')
     webbrowser.open(URL)
 

@@ -14,6 +14,7 @@ class User(UserMixin, db.Model):
     nickname = db.Column(db.String(64), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='participant')
+    is_demo = db.Column(db.Boolean,nullable=False,default=False,server_default=db.false())
     is_owner = db.Column(db.Boolean,nullable=False,default=False)
     blocked = db.Column(db.Boolean, default=False, nullable=False)
     github = db.Column(db.String(300), default='')
@@ -45,6 +46,7 @@ class Hackathon(db.Model):
     closed = db.Column(db.Boolean, default=True, nullable=False)
     status = db.Column(db.String(20), default='active', nullable=False)
     results_published = db.Column(db.Boolean, default=False, nullable=False)
+    peer_enabled = db.Column(db.Boolean,nullable=False,default=False,server_default=db.false())
     peer_published = db.Column(db.Boolean, default=False, nullable=False)
     tie_rule = db.Column(db.String(200), default='При равенстве баллов — более ранняя сдача, затем код проекта.')
     __table_args__ = (CheckConstraint('team_size > 0 AND team_size <= 20'),)
@@ -156,6 +158,8 @@ class LearningProgress(db.Model):
     __table_args__ = (UniqueConstraint('user_id','material_id'),)
 
 class Schedule(db.Model):
+    duration_minutes = db.Column(db.Integer,nullable=False,default=60,server_default='60')
+    provider = db.Column(db.String(20),nullable=False,default='link',server_default='link')
     id = db.Column(db.Integer, primary_key=True)
     hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'), nullable=False, index=True)
     title = db.Column(db.String(200), nullable=False)
@@ -166,6 +170,7 @@ class Schedule(db.Model):
     url = db.Column(db.String(500), default='')
 
 class Submission(db.Model):
+    anonymous_file_id = db.Column(db.Integer,db.ForeignKey('upload.id',name='fk_submission_anonymous_file'))
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False, unique=True)
     code = db.Column(db.String(20), nullable=False, unique=True)

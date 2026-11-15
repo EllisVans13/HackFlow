@@ -13,7 +13,7 @@ def event_data(h):
     return {'id':h.id,'title':h.title,'description':h.description,
             'start_at':h.start_at.isoformat()+'Z','end_at':h.end_at.isoformat()+'Z',
             'difficulty':h.difficulty,'cover':cover_for(h),
-            'is_demo':bool(h.demo_key and h.demo_key.startswith('showcase-')),
+            'is_demo':bool(h.demo_key),
             'results_published':h.results_published}
 
 
@@ -28,7 +28,7 @@ def results(hid):
     h=Hackathon.query.filter_by(id=hid,status='completed',approval='approved',results_published=True).first()
     if not h: abort(404,'Опубликованные результаты не найдены.')
     # Do not expose identities, grades by individual reviewers, private files or URLs.
-    rows=[{key:r[key] for key in ('place','team','title','score','criteria')} for r in ranking(h)]
+    rows=[{key:r[key] for key in ('place','team','title','score','criteria','jury_score','peer_score','jury_component','peer_component','peer_count','peer_enabled')} for r in ranking(h)]
     response={'hackathon':event_data(h),'items':rows,'tie_rule':h.tie_rule,
               'criteria':[{'id':c.id,'title':c.title,'maximum':c.maximum}
                           for c in Criterion.query.filter_by(hackathon_id=hid).order_by(Criterion.id)]}

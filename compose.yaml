@@ -18,7 +18,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://hackflow:${POSTGRES_PASSWORD}@db:5432/hackflow
-    command: ["flask", "--app", "wsgi", "db", "upgrade"]
+    command: ["sh", "-c", "flask --app wsgi db upgrade && flask --app wsgi seed-review-demo"]
+    volumes:
+      - upload_data:/app/data
     depends_on:
       db:
         condition: service_healthy
