@@ -61,7 +61,7 @@
 
 
 Приглашения капитана: GET /api/teams/:id/candidates?q=ник, POST /api/teams/:id/invitations {user_id}, GET /api/team-invitations, POST /api/team-invitations/:id/respond {accept: true/false}.
-Профиль level содержит earned (XP по каждому хакатону), thresholds, current, required, remaining и progress.
+Профиль level содержит earned (score, difficulty, multiplier, xp по каждому хакатону), thresholds, current, required, remaining и progress. XP = официальный score × multiplier (easy 0.7, medium 1.5, hard 2.4), каждое начисление округляется до 0.01 половиной вверх. Сумма и уровень вычисляются заново из опубликованных результатов завершённых одобренных событий; повторное чтение не начисляет опыт.
 
 
 Модерация: GET /api/admin/hackathons; PATCH /api/admin/hackathons/:id {difficulty: easy|medium|hard, approval: approved|rejected, comment}. Доступно только администратору для заявок pending. POST /api/hackathons принимает difficulty и создаёт заявку pending. Каталог скрывает неодобренные мероприятия от посторонних. Опыт по опубликованным завершённым мероприятиям: easy=70, medium=150, hard=240; уровни 0–6 с порогами [0,250,700,1400,2500,4000,6000].
@@ -114,7 +114,7 @@ DELETE /api/hackathons/:id/jury-members/:user — снять жюри своег
 
 ## Взвешенное оценивание и встречи (a18)
 
-- Новые мероприятия используют peer_enabled=true: итог = 0.8 × среднее жюри + 0.2 × среднее трёх команд. Сохранены legacy-мероприятия с прежней схемой. XP по сложности отдельно.
+- Новые мероприятия используют peer_enabled=true: итог = 0.8 × среднее жюри + 0.2 × среднее трёх команд. Сохранены legacy-мероприятия с прежней схемой. XP = официальный итог × коэффициент сложности (0.7 / 1.5 / 2.4).
 - POST /api/hackathons/:id/peer/distribute — организатор, минимум четыре сданных проекта с anonymous_ready и anonymous_file_id. Ровно три входящие и исходящие назначения, без самооценки; существующие назначения сохраняются.
 - GET /api/hackathons/:id/peer/progress — готовность оценок организатору.
 - POST /api/submissions/:id/anonymous-file — организатор, multipart file PDF + confirmed=true. Очищает метаданные/аннотации; видимое содержание проверяет организатор. После оценок подмена запрещена.
