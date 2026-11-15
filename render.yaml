@@ -1,0 +1,50 @@
+# Full deployment with durable uploads. Render shows paid resource costs before creation.
+services:
+  - type: web
+    name: hackflow
+    runtime: docker
+    branch: main
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python start_render.py
+    healthCheckPath: /api/health
+    numInstances: 1
+    disk:
+      name: hackflow-uploads
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hackflow-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_NICKNAME
+        value: Администратор
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: UPLOAD_FOLDER
+        value: /app/data/uploads
+      - key: SEED_DEMO
+        value: "true"
+      - key: DEMO_PASSWORD
+        generateValue: true
+      - key: RUN_REMINDERS
+        value: "true"
+      - key: RATELIMIT_STORAGE_URI
+        value: memory://
+
+databases:
+  - name: hackflow-db
+    region: frankfurt
+    plan: basic-256mb
+    databaseName: hackflow
+    user: hackflow
+    postgresMajorVersion: "17"
