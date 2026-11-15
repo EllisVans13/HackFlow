@@ -8,7 +8,7 @@ const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
 const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,Root};`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
@@ -37,6 +37,23 @@ try{
   const picker=renderToString(React.createElement(components.MentorPicker,{c:{...context,h:{...h,organizer:false},user:{...user,id:1}},team:{...team,captain_id:1,mentor:{id:9,nickname:'Ментор',skills:'React',bio:'Помогаю'}}}));
   if(!picker.includes('Сменить ментора')||!picker.includes('React'))throw Error('Captain mentor choice missing');
   console.log('OK dedicated mentor routes, captain picker and seven learning formats');
+  for(const role of ['admin','organizer','jury','mentor'])if(components.showParticipantResults({role,participant:false}))throw Error('Staff must not see participant results navigation: '+role);
+  if(components.showParticipantResults({role:'participant',participant:false}))throw Error('Event jury must not see participant results navigation');
+  if(!components.showParticipantResults({role:'participant',participant:true}))throw Error('Participant results navigation missing');
+  if(components.resolvePage('archive',{role:'mentor'})!=='archive')throw Error('Mentor must have access to public archive');
+  const archiveHtml=renderToString(React.createElement(components.ArchiveCards,{items:[{id:22,title:'Открытый итог',description:'Описание',end_at:date,results_published:true},{id:23,title:'Ожидаем публикации',description:'Описание',end_at:date,results_published:false}]}));
+  if(!archiveHtml.includes('/results/22')||archiveHtml.includes('/results/23')||!archiveHtml.includes('Результаты ещё не опубликованы'))throw Error('Archive must link only published rankings');
+  const resultsHtml=renderToString(React.createElement(components.ResultsTable,{data:{hackathon:{title:'Открытый итог'},items:[{place:1,team:'Первая команда',title:'Проект',score:91.5}],criteria:[{id:1,title:'Качество',maximum:100}],tie_rule:'Раньше сданный проект'}}));
+  for(const text of ['Место','Первая команда','91,5','Баллы из 100'])if(!resultsHtml.includes(text))throw Error('Missing public ranking column: '+text);
+  console.log('OK staff navigation hidden, archive available to mentors, public archive and places');
+  for(const path of ['/results','/results/22']){
+    globalThis.location.pathname=path;
+    const publicHtml=renderToString(React.createElement(components.Root));
+    if(publicHtml.includes('С возвращением')||!publicHtml.includes('В HackFlow'))throw Error('Public results must render without the login app');
+  }
+  globalThis.location.pathname='/';
+
+
   const cityTeam={...team,style:'tower',stage:'building',floors:3,total:8,done:4,progress:50,capacity:5,recruiting:true,case_title:'Городской сервис',project:null,can_customize:true,showcase:false};
   const caseItem={id:9,title:'Удобный кампус',company:'Кампус',description:'Короткая постановка задачи.',requirements:'Полные условия задачи',expected:'Работающий прототип',url:'https://example.com/case'};
   const cityData={items:[cityTeam],my_team_id:1,results_published:false,summary:{teams:1,members:1,tasks_done:4,submitted:0}};
