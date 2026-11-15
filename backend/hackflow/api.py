@@ -200,8 +200,6 @@ def reset():
 @api.get('/hackathons')
 def hackathons():
     items=Hackathon.query.order_by(Hackathon.start_at.desc())
-    if current_user.is_authenticated and current_user.role=='mentor':
-        items=items.filter(Hackathon.id.in_(db.select(Team.hackathon_id).where(Team.mentor_id==current_user.id)))
     return jsonify(items=[h_data(h) for h in items if h.approval=='approved' or (current_user.is_authenticated and organizer(h.id))])
 
 @api.get('/hackathons/<int:hid>')

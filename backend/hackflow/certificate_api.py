@@ -1,5 +1,6 @@
 from io import BytesIO
-from urllib.parse import urlsplit
+import os
+from urllib.parse import urlsplit, urlencode
 from flask import Blueprint, abort, current_app, jsonify, render_template, send_file, url_for
 from flask_login import current_user, login_required
 from .models import db, AwardCertificate, EventRole
@@ -10,9 +11,11 @@ certificates_api=Blueprint('certificates',__name__)
 
 def public_verification_url(cert):
     base=current_app.config['PUBLIC_URL'].rstrip('/')
+    if urlsplit(base).hostname in ('localhost','127.0.0.1','::1') and os.environ.get('RENDER_EXTERNAL_URL'):
+        base=os.environ['RENDER_EXTERNAL_URL'].rstrip('/')
     if urlsplit(base).scheme not in ('http','https') or not urlsplit(base).netloc:
         abort(503,'Настройте PUBLIC_URL для проверки дипломов.')
-    return base+url_for('certificates.verify_certificate',token=cert.public_id)
+    return base+f'/results/{cert.hackathon_id}?'+urlencode({'certificate':cert.public_id})
 
 def certificate_data(cert):
     return {'id':cert.public_id,'number':f'HF-{cert.id:06d}','hackathon_id':cert.hackathon_id,

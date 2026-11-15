@@ -8,4 +8,4 @@
 <h1>{{ cert.recipient_name }}</h1><p class="event">{{ cert.event_title }}</p>
 <dl><div><dt>Награда</dt><dd>{{ roman }} место</dd></div><div><dt>Команда</dt><dd>{{ cert.team_name }}</dd></div><div><dt>Организатор</dt><dd>{{ cert.organizer_name }}</dd></div><div><dt>Номер диплома</dt><dd>{{ number }}</dd></div></dl>
 {% if not valid %}<p class="note">Результаты были изменены или ещё не опубликованы окончательно. Актуальный диплом доступен участнику в профиле.</p>{% endif %}
-</div><footer>Проверка документа HackFlow · <a href="/#hackathons">Открыть платформу</a></footer></main></body></html>
+</div><footer>Проверка документа HackFlow · <a href="/results/{{ cert.hackathon_id }}">Результаты хакатона</a> · <a href="/#hackathons">Все хакатоны</a></footer></main></body></html>

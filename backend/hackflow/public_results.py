@@ -1,6 +1,8 @@
 """Public event archive and official results with an explicit safe field list."""
-from flask import Blueprint, abort, jsonify
-from .models import Hackathon, Criterion
+import re
+from flask import Blueprint, abort, jsonify, request
+from .models import Hackathon, Criterion, AwardCertificate
+from .certificates import certificate_valid
 from .services import ranking
 from .catalog_assets import cover_for
 
@@ -27,6 +29,15 @@ def results(hid):
     if not h: abort(404,'Опубликованные результаты не найдены.')
     # Do not expose identities, grades by individual reviewers, private files or URLs.
     rows=[{key:r[key] for key in ('place','team','title','score','criteria')} for r in ranking(h)]
-    return jsonify(hackathon=event_data(h),items=rows,tie_rule=h.tie_rule,
-                   criteria=[{'id':c.id,'title':c.title,'maximum':c.maximum}
-                             for c in Criterion.query.filter_by(hackathon_id=hid).order_by(Criterion.id)])
+    response={'hackathon':event_data(h),'items':rows,'tie_rule':h.tie_rule,
+              'criteria':[{'id':c.id,'title':c.title,'maximum':c.maximum}
+                          for c in Criterion.query.filter_by(hackathon_id=hid).order_by(Criterion.id)]}
+    token=request.args.get('certificate')
+    if token is not None:
+        cert=AwardCertificate.query.filter_by(public_id=token,hackathon_id=hid).first() if re.fullmatch(r'[a-f0-9]{32}',token) else None
+        response['certificate']={'valid':False}
+        if cert and certificate_valid(cert):
+            response['certificate']={'valid':True,'number':f'HF-{cert.id:06d}',
+                'recipient_name':cert.recipient_name,'team_name':cert.team_name,
+                'organizer_name':cert.organizer_name,'place':cert.place}
+    return jsonify(response)
