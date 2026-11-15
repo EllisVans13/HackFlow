@@ -145,6 +145,8 @@ def publish_results(h):
             else:
                 result.team_name=row['team']; result.score=row['score']; result.place=row['place']; result.case_title=case.title if case else ''
     h.results_published=True; h.status='completed'
+    from .awards import issue_awards
+    issue_awards(h)
 
 def dispatch_reminders():
     """Idempotent periodic job; run flask reminders once per minute."""

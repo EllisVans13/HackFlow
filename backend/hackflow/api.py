@@ -616,10 +616,9 @@ def criteria_update(hid):
     audit('criteria.update',{'hackathon':hid}); commit(); return jsonify(ok=True)
 
 @api.get('/hackathons/<int:hid>/ranking')
-@login_required
 def team_ranking(hid):
-    h=get(Hackathon,hid); require_admission(h)
-    if not h.results_published and not organizer(hid): return jsonify(published=False,items=[],tie_rule=h.tie_rule)
+    h=get(Hackathon,hid)
+    if not h.results_published and not (current_user.is_authenticated and organizer(hid)): return jsonify(published=False,items=[],tie_rule=h.tie_rule)
     return jsonify(published=h.results_published,items=ranking(h),tie_rule=h.tie_rule)
 
 @api.post('/hackathons/<int:hid>/publish')
@@ -867,3 +866,42 @@ def learning_analytics(hid):
         count=LearningProgress.query.filter(LearningProgress.user_id==u.id,LearningProgress.material_id.in_(material_ids)).count() if material_ids else 0
         rows.append({'nickname':u.nickname,'completed':count,'total':len(material_ids),'percent':round(count/len(material_ids)*100) if material_ids else 0})
     return jsonify(items=rows)
+
+
+@api.get('/public/results')
+def published_events():
+    return jsonify(items=[serialize(h,'id title end_at') for h in Hackathon.query.filter_by(results_published=True).order_by(Hackathon.end_at.desc())])
+
+@api.get('/public/hackathons/<int:hid>/results')
+def public_results(hid):
+    h=get(Hackathon,hid)
+    if not h.results_published:abort(404,'Результаты ещё не опубликованы.')
+    rows=[{k:r[k] for k in ['place','team','title','score','criteria']} for r in ranking(h)]
+    return jsonify(hackathon=serialize(h,'id title end_at tie_rule'),items=rows,criteria=[serialize(c,'id title maximum') for c in Criterion.query.filter_by(hackathon_id=hid)])
+
+@api.get('/public/awards/<string:token>')
+def verify_award(token):
+    from .awards import award_data
+    a=Award.query.filter_by(token=token).first_or_404()
+    h=get(Hackathon,a.hackathon_id)
+    if not h.results_published or h.status!='completed':abort(404,'Документ недействителен.')
+    # A random certificate identifier reveals only the named document, not an account profile.
+    return jsonify(verified=True,award=award_data(a))
+
+@api.get('/profile/awards')
+@login_required
+def my_awards():
+    from .awards import award_data
+    rows=Award.query.join(Hackathon,Award.hackathon_id==Hackathon.id).filter(Award.user_id==current_user.id,Hackathon.results_published.is_(True),Hackathon.status=='completed').order_by(Award.issued_at.desc(),Award.kind)
+    return jsonify(items=[award_data(a) for a in rows])
+
+@api.get('/profile/awards/<int:aid>/pdf')
+@login_required
+def download_award(aid):
+    from .awards import render_pdf
+    from flask import send_file
+    a=get(Award,aid)
+    if a.user_id!=current_user.id:abort(403,'Скачивание доступно владельцу документа.')
+    h=get(Hackathon,a.hackathon_id)
+    if not h.results_published or h.status!='completed':abort(404,'Документ недействителен.')
+    return send_file(io.BytesIO(render_pdf(a)),mimetype='application/pdf',as_attachment=True,download_name=f'hackflow-{a.kind}-{a.id}.pdf')

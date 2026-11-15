@@ -11,6 +11,12 @@ def register_commands(app):
         from .services import dispatch_reminders
         click.echo(f'Отправлено: {dispatch_reminders()}')
 
+    @app.cli.command('issue-certificates')
+    def issue_certificates():
+        from .awards import issue_awards
+        for h in Hackathon.query.filter_by(results_published=True,status='completed'):issue_awards(h)
+        db.session.commit();click.echo('Документы готовы.')
+
     @app.cli.command('init-admin')
     @click.option('--email',prompt=True)
     @click.option('--nickname',default='Администратор',prompt=True)
