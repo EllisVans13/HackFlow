@@ -428,3 +428,5 @@ main{padding-bottom:32px}
 
 :root[data-theme=holiday] .auth-story{background:linear-gradient(155deg,#6d2d3a,#3d2d35)}:root[data-theme=holiday] .auth-story .auth-symbol{background:#66444c;border-color:#8f6963;color:#f0d4a4}
 .overview-learning .section-title{justify-content:flex-start}
+
+.case-card>.section-title{justify-content:flex-end}
