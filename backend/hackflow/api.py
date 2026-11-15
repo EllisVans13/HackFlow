@@ -119,7 +119,7 @@ def team_data(t):
         u=get(User,m.user_id); members.append({'id':u.id,'nickname':u.nickname,'captain':u.id==t.captain_id})
     tasks=Task.query.filter_by(team_id=t.id).all()
     data=serialize(t,'id hackathon_id name description captain_id case_id open created_at')
-    data.update(members=members,progress=round(100*sum(x.status=='done' for x in tasks)/len(tasks)) if tasks else 0)
+    data.update(members=members,tasks_total=len(tasks),tasks_done=sum(x.status=='done' for x in tasks),progress=round(100*sum(x.status=='done' for x in tasks)/len(tasks)) if tasks else 0)
     if t.captain_id==current_user.id or organizer(t.hackathon_id): data['code']=t.code
     return data
 

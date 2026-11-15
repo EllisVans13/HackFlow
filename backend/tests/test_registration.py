@@ -196,3 +196,16 @@ def test_organizer_cannot_remove_jury_from_other_event(client,app):
     login(client,'organizer')
     assert client.delete(f'/api/hackathons/{hid}/jury-members/4').status_code==403
     with app.app_context():assert EventRole.query.filter_by(hackathon_id=hid,user_id=4,role='jury').count()==1
+
+def test_team_progress_uses_actual_tasks(client,app):
+    login(client,'captain')
+    t=client.get('/api/hackathons/1/teams').json['items'][0]
+    assert t['tasks_total']==5 and t['tasks_done']==1 and t['progress']==20
+    with app.app_context():
+        Task.query.filter_by(team_id=1).update({'status':'done'});db.session.commit()
+    t=client.get('/api/hackathons/1/teams').json['items'][0]
+    assert t['tasks_done']==5 and t['progress']==100
+    with app.app_context():
+        Task.query.filter_by(team_id=1).delete();db.session.commit()
+    t=client.get('/api/hackathons/1/teams').json['items'][0]
+    assert t['tasks_total']==0 and t['tasks_done']==0 and t['progress']==0
