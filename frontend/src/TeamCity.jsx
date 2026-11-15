@@ -3,7 +3,7 @@ import {CabinBuilding} from './CabinBuildings.jsx';
 import {Search,RefreshCw,Users,ArrowUpRight,CheckCircle2,Columns3,MessageSquare,ExternalLink,Building2,LayoutGrid,List,Plus} from 'lucide-react';
 
 export const cityStages={plot:'Участок',foundation:'Фундамент',building:'Строится',submitted:'Проект сдан'};
-export const cityStyles={workshop:'Мастерская',tower:'Башня',lab:'Лаборатория',aframe:'А-фрейм',treehouse:'Дом на дереве'};
+export const cityStyles={tower:'Башня',lab:'Лаборатория',aframe:'А-фрейм',treehouse:'Дом на дереве'};
 
 export function CityBuilding({team,small=false}){
  if(['aframe','treehouse'].includes(team.style))return <CabinBuilding team={team} small={small}/>;
