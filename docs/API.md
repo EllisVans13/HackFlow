@@ -58,3 +58,16 @@
 Принятие апелляции с изменением оценки: status=accepted, response=причина, jury_id, scores и comment. Система меняет конкретную оценку жюри, а не добавляет произвольные баллы поверх 100.
 
 Дополнительно: POST /api/profile/avatar, POST /api/hackathons/:id/cover (multipart file PNG/JPEG, до 2 МБ), GET /api/media/:token, GET /api/hackathons/:id/learning-analytics.
+
+
+Приглашения капитана: GET /api/teams/:id/candidates?q=ник, POST /api/teams/:id/invitations {user_id}, GET /api/team-invitations, POST /api/team-invitations/:id/respond {accept: true/false}.
+Профиль level содержит earned (XP по каждому хакатону), thresholds, current, required, remaining и progress.
+
+
+Модерация: GET /api/admin/hackathons; PATCH /api/admin/hackathons/:id {difficulty: easy|medium|hard, approval: approved|rejected, comment}. Доступно только администратору для заявок pending. POST /api/hackathons принимает difficulty и создаёт заявку pending. Каталог скрывает неодобренные мероприятия от посторонних. Опыт по опубликованным завершённым мероприятиям: easy=70, medium=150, hard=240; уровни 0–6 с порогами [0,250,700,1400,2500,4000,6000].
+
+Владение: POST /api/admin/ownership {user_id} — только текущий владелец, получатель активный admin; прежний владелец сохраняет роль admin. User.is_owner возвращается в auth/me и списке пользователей. PATCH /api/admin/users/:id поддерживает роли participant/organizer/jury/admin, а назначение на событие — hackathon_id и event_role (organizer/jury). POST /api/hackathons/:id/jury-members {email} — назначение зарегистрированного пользователя жюри организатором своего хакатона. Все операции защищены проверками прав и CSRF.
+
+DELETE /api/hackathons/:id/jury-members/:user — снять жюри своего хакатона (организатор события либо администратор). Отзывает событийную роль, назначения на проверки этого события и неиспользованные приглашения; оценки/история и роли других событий сохраняются.
+
+Документы: GET /api/profile/awards; GET /api/profile/awards/:id/pdf (только владелец). Открытые результаты: GET /api/public/results; GET /api/public/hackathons/:id/results. Проверка документа: GET /api/public/awards/:token. Старый endpoint /api/hackathons/:id/ranking также возвращает опубликованный рейтинг без авторизации; предварительные оценки остаются доступны только организатору. Команда issue-certificates оформляет документы для старых опубликованных событий без дубликатов.

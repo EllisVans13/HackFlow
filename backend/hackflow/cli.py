@@ -6,6 +6,12 @@ from werkzeug.security import generate_password_hash
 from .models import *
 
 def register_commands(app):
+    @app.cli.command('issue-certificates')
+    def issue_certificates():
+        from .awards import issue_awards
+        for h in Hackathon.query.filter_by(results_published=True,status='completed'):issue_awards(h)
+        db.session.commit();click.echo('Документы для опубликованных результатов готовы.')
+
     @app.cli.command('reminders')
     def reminders():
         from .services import dispatch_reminders
@@ -19,7 +25,7 @@ def register_commands(app):
         """Создать первого администратора локально, без открытого API."""
         if User.query.filter_by(role='admin').first(): raise click.ClickException('Администратор уже существует.')
         if len(password)<12: raise click.ClickException('Пароль — минимум 12 символов.')
-        db.session.add(User(email=email.lower(),nickname=nickname,role='admin',password_hash=generate_password_hash(password)))
+        db.session.add(User(email=email.lower(),nickname=nickname,role='admin',is_owner=True,password_hash=generate_password_hash(password)))
         db.session.commit(); click.echo('Администратор создан.')
 
     @app.cli.command('reset-password')
@@ -31,11 +37,19 @@ def register_commands(app):
         if not u or len(password)<12: raise click.ClickException('Аккаунт не найден или пароль короче 12 символов.')
         u.password_hash=generate_password_hash(password); db.session.commit(); click.echo('Пароль изменён.')
 
+    @app.cli.command('seed-showcase')
+    @click.option('--password',envvar='DEMO_PASSWORD',required=True)
+    def seed_showcase(password):
+        from .demo import enrich
+        enrich(password); click.echo('Демоданные добавлены.')
+
     @app.cli.command('seed-demo')
     @click.option('--password',envvar='DEMO_PASSWORD',required=True,help='Демонстрационный пароль, минимум 12 символов.')
     def seed_demo(password):
         """Предзаполнить демонстрационный хакатон. Не создаёт администратора."""
-        seed(password); click.echo('Демо готово: participant, captain, organizer, jury @hackflow.test. Администратор: flask init-admin.')
+        if not Hackathon.query.first(): seed(password)
+        from .demo import enrich
+        enrich(password); click.echo('Демо готово: participant, captain, organizer, jury @hackflow.test. Администратор: flask init-admin.')
 
 def seed(password):
     if len(password)<12: raise click.ClickException('DEMO_PASSWORD должен содержать минимум 12 символов.')

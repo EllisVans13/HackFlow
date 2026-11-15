@@ -14,12 +14,15 @@ class User(UserMixin, db.Model):
     nickname = db.Column(db.String(64), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='participant')
+    is_owner = db.Column(db.Boolean,nullable=False,default=False)
     blocked = db.Column(db.Boolean, default=False, nullable=False)
     github = db.Column(db.String(300), default='')
     telegram = db.Column(db.String(100), default='')
     avatar = db.Column(db.String(300), default='')
     theme = db.Column(db.String(20), default='yellow')
     created_at = db.Column(db.DateTime, default=now, nullable=False)
+
+    __table_args__ = (db.Index('uq_platform_owner','is_owner',unique=True,postgresql_where=db.text('is_owner'),sqlite_where=db.text('is_owner')),CheckConstraint("NOT is_owner OR (role='admin' AND NOT blocked)",name='owner_is_active_admin'))
 
 class Hackathon(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -30,6 +33,11 @@ class Hackathon(db.Model):
     start_at = db.Column(db.DateTime, nullable=False)
     end_at = db.Column(db.DateTime, nullable=False)
     registration_deadline = db.Column(db.DateTime, nullable=False)
+    team_deadline = db.Column(db.DateTime)
+    difficulty = db.Column(db.String(20),nullable=False,default='easy')
+    approval = db.Column(db.String(20),nullable=False,default='approved')
+    review_comment = db.Column(db.Text,default='')
+    demo_key = db.Column(db.String(80), unique=True)
     submission_deadline = db.Column(db.DateTime, nullable=False)
     team_size = db.Column(db.Integer, nullable=False, default=5)
     closed = db.Column(db.Boolean, default=True, nullable=False)
@@ -63,6 +71,8 @@ class Case(db.Model):
     url = db.Column(db.String(500), default='')
 
 class Team(db.Model):
+    city_style = db.Column(db.String(20),nullable=False,default='workshop',server_default='workshop')
+    city_showcase = db.Column(db.Boolean,nullable=False,default=False,server_default=db.false())
     id = db.Column(db.Integer, primary_key=True)
     hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'), nullable=False, index=True)
     captain_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -310,3 +320,24 @@ class Media(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'))
     purpose = db.Column(db.String(20), nullable=False)
+
+class TeamInvitation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    expires_at = db.Column(db.DateTime, nullable=False)
+    __table_args__ = (UniqueConstraint('team_id','user_id',name='uq_team_invitation_recipient'),)
+
+class Award(db.Model):
+    kind = db.Column(db.String(20),nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'), nullable=False)
+    token = db.Column(db.String(64), nullable=False, unique=True)
+    recipient = db.Column(db.String(64), nullable=False)
+    event_title = db.Column(db.String(200), nullable=False)
+    organizers = db.Column(db.Text, nullable=False)
+    place = db.Column(db.Integer)
+    issued_at = db.Column(db.DateTime, nullable=False, default=now)
+    __table_args__ = (UniqueConstraint('user_id','hackathon_id','kind',name='uq_award_user_event_kind'),)
