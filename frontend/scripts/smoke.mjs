@@ -8,7 +8,7 @@ const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
 const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace','CodeReportView'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm,canPeerReview};`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
@@ -24,7 +24,21 @@ try{
   const h={id:1,title:'Хакатон',status:'active',organizer:true,jury:true,start_at:date,end_at:date,submission_deadline:date,team_size:5,rules:'Правила'};
   const user={id:1,nickname:'Тест',email:'test@example.com',role:'organizer',created_at:date,theme:'yellow'};
   const team={id:1,name:'Команда',members:[{id:1,nickname:'Тест',captain:true}],captain_id:1,progress:0,requests:[],description:'Описание'};
-  const context={h,hid:1,user,team,cases:[],criteria:[],events:[h],notes:[],revision:0,theme:'yellow',go:()=>{},run:()=>{},form:()=>{},setHid:()=>{},setTheme:()=>{},setUser:()=>{},onLogin:()=>{}};
+ 
+ for(const role of ['admin','organizer','jury','mentor','expert']){
+  const user={role,participant:false},event={admitted:true};
+  if(components.canPeerReview(user,event))throw Error('Staff Peer Review entry: '+role);
+  if(components.resolvePage('peer',user,event)!=='home')throw Error('Staff Peer Review route: '+role);
+ }
+ const participant={role:'participant',participant:true};
+ if(!components.canPeerReview(participant,{admitted:true}))throw Error('Registered participant lost Peer Review');
+ if(components.canPeerReview(participant,{admitted:false}))throw Error('Unregistered Peer Review entry');
+ if(components.canPeerReview({role:'participant',participant:false},{admitted:true}))throw Error('Event jury gained Peer Review');
+ if(components.resolvePage('peer',participant,{admitted:false})!=='home')throw Error('Unregistered Peer Review route');
+ if(components.resolvePage('peer',participant,{admitted:true})!=='peer')throw Error('Participant Peer Review route');
+ if(source.includes('Взаимная проверка')||source.includes("['peer','Peer review'"))throw Error('Incorrect Peer Review naming');
+ console.log('OK Peer Review participant-only navigation and direct routes for all roles');
+ const context={h,hid:1,user,team,cases:[],criteria:[],events:[h],notes:[],revision:0,theme:'yellow',go:()=>{},run:()=>{},form:()=>{},setHid:()=>{},setTheme:()=>{},setUser:()=>{},onLogin:()=>{}};
   for(const page of ['team','kanban','jury','organizer','admin','submission']){
     if(components.resolvePage(page,{role:'mentor'})!=='mentor')throw Error('Mentor route must stay in mentor workspace: '+page);
   }

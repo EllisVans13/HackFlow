@@ -46,9 +46,10 @@ def seed_review_demo():
             db.session.add(u);db.session.flush()
         users[short]=u
     h=Hackathon.query.filter_by(demo_key='peer-demo-2026').first()
+    if h and h.title=='[Демо] Взаимная проверка проектов':h.title='[Демо] Peer Review проектов'
     fresh=h is None
     if fresh:
-        h=Hackathon(demo_key='peer-demo-2026',title='[Демо] Взаимная проверка проектов',description='Четыре учебные команды по одному участнику. Каждая оценивает три чужие работы анонимно. Итог: 80% жюри + 20% Peer Review.',
+        h=Hackathon(demo_key='peer-demo-2026',title='[Демо] Peer Review проектов',description='Четыре учебные команды по одному участнику. Каждая оценивает три чужие работы анонимно. Итог: 80% жюри + 20% Peer Review.',
             rules='Скачайте обезличенный PDF и оцените три назначенных проекта по критериям из 100. Не оценивайте собственную работу.',
             start_at=now()-timedelta(days=5),end_at=now()+timedelta(days=7),registration_deadline=now()-timedelta(days=3),team_deadline=now()-timedelta(days=2),submission_deadline=now()-timedelta(hours=12),status='review',peer_enabled=True,difficulty='medium')
         db.session.add(h);db.session.flush()
