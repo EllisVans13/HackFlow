@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
-const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
+const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
  const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<App/>);",'')+`\nexport {${names.join(',')},resolvePage};`;
@@ -58,6 +58,15 @@ try{
   const awardError=renderToString(React.createElement(components.AwardCertificates,{error:'Ошибка загрузки'}));
   if(!awardError.includes('role="alert"'))throw Error('Certificate load errors must be visible');
   console.log('OK awards: three podium places, personal names and authenticated download links');
+  for(const theme of ['yellow','purple','holiday']){
+    const html=renderToString(React.createElement(components.ThemeSwitcher,{theme}));
+    if(!html.includes('aria-haspopup="dialog"')||!html.includes('aria-expanded="false"'))throw Error('Header theme trigger missing');
+  }
+  for(const [kind,material] of [['code',{topic:'Разработка',title:'React: практика',kind:'document'}],['design',{topic:'Дизайн',title:'Figma',kind:'document'}],['video',{topic:'Презентации',kind:'video'}],['reading',{topic:'Аналитика',kind:'document'}]]){
+    const html=renderToString(React.createElement(components.MaterialCover,{material}));
+    if(!html.includes('material-cover-'+kind)||!html.includes('<svg')||!html.includes(material.topic))throw Error('Missing bundled material illustration '+kind);
+  }
+  console.log('OK header theme triggers and four material cover types');
   const snow=renderToString(React.createElement(components.Snowfall,{enabled:true}));
   if(renderToString(React.createElement(components.Snowfall,{enabled:false}))!=='')throw Error('Snow must be disabled outside holiday theme');
   if((snow.match(/class="winter-flake"/g)||[]).length!==40)throw Error('Snow particles missing');
@@ -94,6 +103,6 @@ try{
   const gallery=renderToString(React.createElement(components.CityDetail,{team:{...cityTeam,can_customize:false,stage:'submitted',project:{title:'Выставка',description:'Открытый проект',demo:'https://example.com/exhibit'}},resultsPublished:true,go:()=>{}}));
   if(!gallery.includes('https://example.com/exhibit')||!gallery.includes('Открыть демо'))throw Error('Published exhibition link missing');
   console.log('OK city: 20 building states, captain controls, empty city, exhibition');
-  console.log(`Passed: ${names.length+47} render cases. Browser QA remains separate.`);
+  console.log(`Passed: ${names.length+54} render cases. Browser QA remains separate.`);
  }finally{await rm(modulePath,{force:true})}
 }finally{await rm(dir,{recursive:true,force:true})}
