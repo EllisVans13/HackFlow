@@ -68,60 +68,41 @@ def audit_submission(data, team, external=True):
 IGNORED={'node_modules','vendor','.git','dist','build','.venv','venv','__pycache__'}
 EXTENSIONS={'.py','.js','.jsx','.ts','.tsx','.java','.go','.c','.cpp','.rs'}
 
-def source_archive(path):
+class SourceArchive(dict):
+    total_files=0
+    truncated=False
+
+
+def source_archive(path,max_files=32,max_tokens=10000):
     from pathlib import PurePosixPath
-    result={}
+    result=SourceArchive()
     with zipfile.ZipFile(path) as z:
         infos=z.infolist()
         if len(infos)>1000 or sum(i.file_size for i in infos)>20*1024*1024: abort(400,'Архив слишком большой: максимум 1000 файлов / 20 МБ после распаковки.')
+        candidates=[]
         for info in infos:
             p=PurePosixPath(info.filename)
             if p.is_absolute() or '..' in p.parts or any(x in IGNORED for x in p.parts): continue
             if p.suffix.lower() not in EXTENSIONS or info.file_size>256*1024: continue
+            candidates.append(info)
+        result.total_files=len(candidates)
+        result.truncated=len(candidates)>max_files
+        for info in candidates[:max_files]:
+            p=PurePosixPath(info.filename)
             text=z.read(info).decode('utf-8',errors='replace')
             # Identifiers and literals are normalized; comments/imports omitted.
             text=re.sub(r'(?m)^\s*(?:import |from |//|#).*$', '',text)
-            parts=re.findall(r'[A-Za-z_]\w*|\d+|[^\s\w]',text)
+            parts=re.findall(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_]\w*|\d+(?:\.\d+)?|[^\s\w]''',text)
             keywords=set('if else for while return def class function const let var async await try except throw new public private static void int in of True False None'.split())
-            normalized=[x if x in keywords or not x.isidentifier() else 'ID' for x in parts]
-            if len(normalized)>=40: result[str(p)]=normalized
+            normalized=['STR' if x.startswith(('\"',"'")) else 'NUM' if x[0].isdigit() else x if x in keywords or not x.isidentifier() else 'ID' for x in parts]
+            if len(normalized)>max_tokens:result.truncated=True
+            if len(normalized)>=40: result[str(p)]=normalized[:max_tokens]
     return result
 
 def run_codecheck(submission, folder):
-    from pathlib import Path
-    report=CodeReport.query.filter_by(submission_id=submission.id).first()
-    if not report:
-        report=CodeReport(submission_id=submission.id,status='running',report={}); db.session.add(report)
-    report.status='running'; db.session.flush()
-    upload=db.session.get(Upload,submission.source_id) if submission.source_id else None
-    if not upload:
-        report.status='unavailable'; report.report={'message':'Загрузите ZIP с исходниками. Анализ не выполнялся.'}; return report
-    source=source_archive(Path(folder)/upload.storage_name)
-    if not source:
-        report.status='unavailable'; report.report={'message':'Нет исходных файлов с минимум 40 токенами после исключения шаблонов.'}; return report
-    matches=[]
-    team=db.session.get(Team,submission.team_id)
-    for other in Submission.query.join(Team,Submission.team_id==Team.id).filter(Team.hackathon_id==team.hackathon_id,Submission.id!=submission.id).all():
-        other_upload=db.session.get(Upload,other.source_id) if other.source_id else None
-        if not other_upload: continue
-        other_source=source_archive(Path(folder)/other_upload.storage_name)
-        best=0; fragments=[]
-        # Bounded workload. Never execute uploaded code.
-        for a in list(source.values())[:40]:
-            for b in list(other_source.values())[:40]:
-                matcher=SequenceMatcher(None,a[:6000],b[:6000],autojunk=True)
-                ratio=round(100*matcher.ratio(),1)
-                if ratio>best:
-                    best=ratio
-                    fragments=[{'tokens':m.size,'left_offset':m.a,'right_offset':m.b,'normalized_excerpt':' '.join(a[m.a:m.a+min(m.size,80)])} for m in matcher.get_matching_blocks() if m.size>=25][:8]
-        matches.append({'code':other.code,'similarity':best,'fragments':fragments})
-    report.status='completed'
-    report.report={'matches':sorted(matches,key=lambda x:-x['similarity']), 'files_analyzed':len(source),'method':'Нормализованные токены + SequenceMatcher; зависимости и каталоги сборки исключены.', 'limitations':'Сходство не доказывает плагиат. Общие шаблоны и короткие программы могут повышать показатель. Автоматических санкций нет.'}
-    ai=AIReport.query.filter_by(submission_id=submission.id).first()
-    observations={'files':len(source),'tokens':sum(map(len,source.values())),'limitations':'По исходному коду нельзя достоверно установить использование ИИ. История коммитов в ZIP не проверяется. Процент ИИ-кода не рассчитывается.'}
-    if not ai: db.session.add(AIReport(submission_id=submission.id,observations=observations))
-    else: ai.observations=observations
-    return report
+    from .plagiarism import run_analysis
+    return run_analysis(submission,folder)
+
 
 def ranking(h):
     rows=[]
