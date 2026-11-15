@@ -1,5 +1,6 @@
 """Awards are derived from official results; PDF never contains user-supplied HTML."""
 import io
+import gzip
 import os
 import secrets
 from html import escape
@@ -44,10 +45,10 @@ def award_data(a):
     return {'id':a.id,'hackathon_id':a.hackathon_id,'recipient':a.recipient,'event_title':a.event_title,'organizers':a.organizers,'place':a.place,'kind':'diploma' if a.place else 'certificate','title':f'Диплом {a.place} степени' if a.place else 'Сертификат участника','issued_at':a.issued_at.isoformat()+'Z','verification_url':current_app.config['PUBLIC_URL'].rstrip('/')+f'/results/{a.hackathon_id}?award={a.token}'}
 
 def render_pdf(a):
-    candidates=[os.environ.get('CERT_FONT_PATH',''),'/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf','C:/Windows/Fonts/arial.ttf','/System/Library/Fonts/Supplemental/Arial.ttf']
+    candidates=[os.environ.get('CERT_FONT_PATH',''),str(Path(__file__).parent/'assets'/'DejaVuSans.ttf.gz'),'/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf','C:/Windows/Fonts/arial.ttf','/System/Library/Fonts/Supplemental/Arial.ttf']
     font=next((p for p in candidates if p and Path(p).is_file()),None)
     if not font:raise RuntimeError('Для PDF нужен кириллический TTF: задайте CERT_FONT_PATH.')
-    if 'AwardFont' not in pdfmetrics.getRegisteredFontNames():pdfmetrics.registerFont(TTFont('AwardFont',font))
+    if 'AwardFont' not in pdfmetrics.getRegisteredFontNames():pdfmetrics.registerFont(TTFont('AwardFont',io.BytesIO(gzip.decompress(Path(font).read_bytes())) if font.endswith('.gz') else font))
     data=award_data(a);buffer=io.BytesIO();width,height=landscape(A4)
     c=canvas.Canvas(buffer,pagesize=(width,height));c.setTitle(data['title']);c.setAuthor('HackFlow')
     c.setFillColor(HexColor('#fbfaf7'));c.rect(0,0,width,height,fill=1,stroke=0)
