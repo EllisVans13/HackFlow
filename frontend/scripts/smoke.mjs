@@ -8,7 +8,7 @@ const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
 const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace','CodeReportView'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm};`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
@@ -68,6 +68,13 @@ try{
     if(html.includes('0%'))throw Error('Missing sources must not appear as zero plagiarism');
   }
   console.log('OK jury code similarity evidence and honest stale/unavailable states');
+  const peerHtml=renderToString(React.createElement(components.PeerCards,{data:{items:[{id:22,code:'ANON22',text:'Обезличенная работа',material_url:'/api/peer/22/material',reviewed:false}],can_review:true,published:false},c:context,onGrade:()=>{}}));
+  for(const text of ['Анонимный проект','Открыть PDF проекта','Скачать PDF','/api/peer/22/material','Оценить проект'])if(!peerHtml.includes(text))throw Error('Peer review anonymous file action missing: '+text);
+  const meetingHtml=renderToString(React.createElement(components.MeetingForm,{onSubmit:()=>{},onClose:()=>{},busy:false}));
+  for(const text of ['Длительность','Дата и время','https://telemost.yandex.ru/','https://zoom.us/','Ссылка подключения','автоматически не создаёт'])if(!meetingHtml.includes(text))throw Error('Meeting setup field/help missing: '+text);
+  if(components.resolvePage('team',{role:'expert'})!=='expert')throw Error('Expert must have dedicated workspace');
+  console.log('OK anonymous peer PDFs, meeting provider/date/duration fields and expert route');
+
 
 
   for(const path of ['/results','/results/22']){

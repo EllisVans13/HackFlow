@@ -24,6 +24,7 @@ def mentor_catalog(hid):
     members=db.select(Membership.user_id).where(Membership.hackathon_id==hid)
     users=User.query.filter(User.role=='mentor',User.blocked.is_(False),
                             User.id.not_in(unavailable),User.id.not_in(members)).order_by(User.nickname)
+    if not h.demo_key:users=users.filter(User.is_demo.is_(False))
     return jsonify(items=[mentor_data(u) for u in users])
 
 
@@ -39,6 +40,7 @@ def select_mentor(tid):
     if request.method=='PUT':
         body_id=integer(body().get('user_id'))
         user=User.query.filter_by(id=body_id).with_for_update().first_or_404()
+        if user.is_demo and not get(Hackathon,team.hackathon_id).demo_key:abort(403,'Публичный демоментор доступен только демокомандам.')
         if user.role!='mentor' or user.blocked:
             abort(409,'Выберите активный аккаунт ментора.')
         if EventRole.query.filter(EventRole.user_id==user.id,EventRole.hackathon_id==team.hackathon_id,

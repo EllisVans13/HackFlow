@@ -11,6 +11,8 @@ def main():
         [sys.executable, '-m', 'flask', '--app', 'wsgi', 'db', 'upgrade'],
         check=True,
     )
+    if os.environ.get('SEED_REVIEW_DEMO','true').lower()=='true':
+        subprocess.run([sys.executable,'-m','flask','--app','wsgi','seed-review-demo'],check=True)
     # Replace this process so Gunicorn receives Render's shutdown signals.
     os.execv(sys.executable, [
         sys.executable, '-m', 'gunicorn',

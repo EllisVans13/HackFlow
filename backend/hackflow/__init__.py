@@ -50,6 +50,8 @@ def create_app(config=None):
     app.register_blueprint(mentors_api,url_prefix='/api')
     from .public_results import public_results_api
     app.register_blueprint(public_results_api,url_prefix='/api')
+    from .peer_api import peer_api
+    app.register_blueprint(peer_api,url_prefix='/api')
     register_commands(app)
 
     @login.user_loader

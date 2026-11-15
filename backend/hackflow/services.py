@@ -105,17 +105,36 @@ def run_codecheck(submission, folder):
 
 
 def ranking(h):
+    from .peer_assessment import peer_summary
     rows=[]
+    criteria=Criterion.query.filter_by(hackathon_id=h.id).all()
     for s in Submission.query.join(Team,Submission.team_id==Team.id).filter(Team.hackathon_id==h.id).all():
         scores=JuryScore.query.filter_by(submission_id=s.id).all()
-        if not scores: continue
-        team=db.session.get(Team,s.team_id)
-        rows.append({'submission_id':s.id,'team_id':team.id,'team':team.name,'title':s.title,'code':s.code,'score':round(sum(r.total for r in scores)/len(scores),2),'submitted_at':s.submitted_at.isoformat(), 'criteria':{str(c.id):round(sum(float(r.scores.get(str(c.id),0)) for r in scores)/len(scores),2) for c in Criterion.query.filter_by(hackathon_id=h.id)}})
-    rows.sort(key=lambda r:(-r['score'],r['submitted_at'],r['code']))
-    for i,row in enumerate(rows,1): row['place']=i
+        if not scores:continue
+        team=db.session.get(Team,s.team_id);jury=sum(r.total for r in scores)/len(scores)
+        peer=peer_summary(s);ready=not h.peer_enabled or peer['complete']
+        average=peer['average'] if peer['complete'] else None
+        total=(.8*jury+.2*average) if h.peer_enabled and ready else jury if not h.peer_enabled else None
+        combined={}
+        for c in criteria:
+            j=sum(float(r.scores.get(str(c.id),0)) for r in scores)/len(scores)
+            p=sum(float(r.scores.get(str(c.id),0)) for r in peer['reviews'])/3 if peer['complete'] else 0
+            combined[str(c.id)]=round(.8*j+.2*p,2) if h.peer_enabled else round(j,2)
+        rows.append({'submission_id':s.id,'team_id':team.id,'team':team.name,'title':s.title,'code':s.code,
+                     'score':round(total,2) if total is not None else None,
+                     'jury_score':round(jury,2),'peer_score':round(average,2) if average is not None else None,
+                     'jury_component':round(jury*(.8 if h.peer_enabled else 1),2),
+                     'peer_component':round(.2*average,2) if h.peer_enabled and average is not None else 0 if not h.peer_enabled else None,
+                     'peer_count':peer['received'],'peer_enabled':h.peer_enabled,'ready':ready,
+                     'submitted_at':s.submitted_at.isoformat(),'criteria':combined})
+    rows.sort(key=lambda r:(-(r['score'] if r['score'] is not None else -1),r['submitted_at'],r['code']))
+    for i,row in enumerate(rows,1):row['place']=i if row['ready'] else None
     return rows
 
+
 def publish_results(h):
+    from .peer_assessment import assert_peer_complete
+    assert_peer_complete(h)
     for row in ranking(h):
         for member in Membership.query.filter_by(team_id=row['team_id']).all():
             result=PersonalResult.query.filter_by(user_id=member.user_id,hackathon_id=h.id).first()
@@ -126,6 +145,7 @@ def publish_results(h):
             else:
                 result.team_name=row['team']; result.score=row['score']; result.place=row['place']; result.case_title=case.title if case else ''
     h.results_published=True; h.status='completed'
+    if h.peer_enabled:h.peer_published=True
     db.session.flush()
     from .certificates import sync_awards
     sync_awards(h)
