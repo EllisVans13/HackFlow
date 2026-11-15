@@ -19,6 +19,8 @@ class User(UserMixin, db.Model):
     github = db.Column(db.String(300), default='')
     telegram = db.Column(db.String(100), default='')
     avatar = db.Column(db.String(300), default='')
+    mentor_bio = db.Column(db.Text, default='')
+    mentor_skills = db.Column(db.String(300), default='')
     theme = db.Column(db.String(20), default='holiday')
     created_at = db.Column(db.DateTime, default=now, nullable=False)
 
@@ -74,6 +76,7 @@ class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'), nullable=False, index=True)
     captain_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    mentor_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_team_mentor'), index=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, default='')
     city_style = db.Column(db.String(20), nullable=False, default='workshop', server_default='workshop')
@@ -134,6 +137,9 @@ class Track(db.Model):
     title = db.Column(db.String(200), nullable=False)
 
 class Material(db.Model):
+    catalog_key = db.Column(db.String(80))
+    language = db.Column(db.String(10), nullable=False, default='ru', server_default='unknown')
+    __table_args__ = (UniqueConstraint('hackathon_id', 'catalog_key', name='uq_material_catalog_key'),)
     id = db.Column(db.Integer, primary_key=True)
     hackathon_id = db.Column(db.Integer, db.ForeignKey('hackathon.id'), nullable=False, index=True)
     track_id = db.Column(db.Integer, db.ForeignKey('track.id'))

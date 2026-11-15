@@ -17,7 +17,7 @@ MIGRATIONS = str(Path(__file__).resolve().parents[1] / 'migrations')
 @pytest.mark.parametrize('revision', [
     'base', '55e9b1bb7a5d', 'a14_team_city', 'a14_awards',
     'a15_merge_city_awards', 'adele_awards', 'adele_compat_heads',
-    'a15_award_certificates',
+    'a15_award_certificates', 'a16_merge_legacy_histories',
 ])
 def test_upgrade_preserves_existing_database(tmp_path, revision):
     url = os.environ.get('MIGRATION_TEST_DATABASE_URL')
@@ -63,7 +63,7 @@ def test_upgrade_preserves_existing_database(tmp_path, revision):
             upgrade(directory=MIGRATIONS)
             assert db.session.execute(sa.text(
                 'SELECT version_num FROM alembic_version'
-            )).scalars().all() == ['a16_merge_legacy_histories']
+            )).scalars().all() == ['a17_mentors_learning']
             assert db.session.execute(sa.text(
                 'SELECT password_hash FROM "user" WHERE id=901'
             )).scalar_one() == 'existing-hash'

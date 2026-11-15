@@ -36,6 +36,12 @@ def register_commands(app):
         from .demo import refresh_demo_content
         refresh_demo_content(); click.echo('Демонстрационный каталог обновлён. Пароли сохранены.')
 
+    @app.cli.command('seed-learning')
+    def seed_learning():
+        from .learning_seed_v1 import populate_learning
+        count=populate_learning(db.session.connection())
+        db.session.commit(); click.echo(f'Добавлено русскоязычных материалов: {count}')
+
     @app.cli.command('seed-showcase')
     @click.option('--password',envvar='DEMO_PASSWORD',required=True)
     def seed_showcase(password):

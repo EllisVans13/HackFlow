@@ -23,6 +23,9 @@ def enrich(password):
             raise ValueError('Email admin@hackflow.test уже занят; создайте администратора через init-admin.')
         db.session.add(User(email='admin@hackflow.test',nickname='Главный администратор',role='admin',is_owner=True,password_hash=generate_password_hash(password)))
         db.session.flush()
+    for email,nickname,skills in [('mentor@hackflow.test','Елена · ментор','Frontend, React, UX'),('mentor.backend@hackflow.test','Павел · ментор','Python, PostgreSQL, API')]:
+        if not User.query.filter_by(email=email).first():
+            db.session.add(User(email=email,nickname=nickname,role='mentor',mentor_bio='Демонстрационный профиль ментора для проверки сценариев.',mentor_skills=skills,password_hash=generate_password_hash(password)))
     us=[]
     for name in ['participant','captain','organizer','jury','builder']:
         u=User.query.filter_by(email=name+'@hackflow.test').first()
@@ -55,6 +58,9 @@ def enrich(password):
         db.session.add(Schedule(hackathon_id=h.id,title='Разбор прототипа [демо]',starts_at=start+timedelta(days=2),url='https://react.dev/learn',speaker='Демо-эксперт'))
         db.session.flush()
         if status=='completed':publish_results(h)
+    db.session.flush()
+    from .learning_seed_v1 import populate_learning
+    populate_learning(db.session.connection())
     db.session.commit()
     refresh_demo_content()
 

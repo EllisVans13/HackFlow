@@ -16,6 +16,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func
 from . import limiter
 from .models import *
+from .mentoring import assigned_mentor, mentor_data
 from .services import digest, safe_url, audit_submission, github_repo, ranking, publish_results, run_codecheck, source_archive
 
 api=Blueprint('api',__name__)
@@ -54,7 +55,7 @@ def require_participant(u=None):
     if not participant_account(u or current_user): abort(403,'Участие доступно только аккаунтам участников.')
 
 def user_data(u):
-    d=serialize(u,'id email nickname role is_owner github telegram avatar theme created_at blocked'); d['participant']=participant_account(u); return d
+    d=serialize(u,'id email nickname role is_owner github telegram avatar theme created_at blocked mentor_bio mentor_skills'); d['participant']=participant_account(u); return d
 
 def event_role(hid,role): return EventRole.query.filter_by(user_id=current_user.id,hackathon_id=hid,role=role).first() is not None
 
@@ -67,8 +68,10 @@ def require_admin():
     if current_user.role!='admin': abort(403,'Требуются права администратора.')
 
 def admitted(h):
+    if current_user.role=='mentor':
+        return h.approval=='approved' and Team.query.filter_by(hackathon_id=h.id,mentor_id=current_user.id).first() is not None
     if h.approval!='approved': return organizer(h.id)
-    return organizer(h.id) or event_role(h.id,'jury') or Admission.query.filter_by(hackathon_id=h.id,email=current_user.email).first() is not None
+    return organizer(h.id) or event_role(h.id,'jury') or (current_user.role=='mentor' and Team.query.filter_by(hackathon_id=h.id,mentor_id=current_user.id).first() is not None) or Admission.query.filter_by(hackathon_id=h.id,email=current_user.email).first() is not None
 
 def require_admission(h):
     if not admitted(h): abort(403,'Нет допуска к закрытому хакатону.')
@@ -80,7 +83,7 @@ def member_team(hid,uid=None):
 def team_access(t,write=False):
     if write: require_participant()
     if participant_account(current_user) and Membership.query.filter_by(team_id=t.id,user_id=current_user.id).first(): return
-    if not write and organizer(t.hackathon_id): return
+    if not write and (organizer(t.hackathon_id) or assigned_mentor(t)): return
     abort(403,'Нет доступа к пространству этой команды.')
 
 def captain(t):
@@ -119,6 +122,7 @@ def team_data(t):
         u=get(User,m.user_id); members.append({'id':u.id,'nickname':u.nickname,'avatar':u.avatar,'captain':u.id==t.captain_id})
     tasks=Task.query.filter_by(team_id=t.id).all()
     data=serialize(t,'id hackathon_id name description captain_id case_id open created_at')
+    data['mentor']=mentor_data(db.session.get(User,t.mentor_id)) if t.mentor_id else None
     data.update(members=members,progress=round(100*sum(x.status=='done' for x in tasks)/len(tasks)) if tasks else 0)
     if t.captain_id==current_user.id or organizer(t.hackathon_id): data['code']=t.code
     return data
@@ -129,7 +133,7 @@ def h_data(h,full=False):
     d['cover']=cover_for(h)
     d['is_demo']=bool(h.demo_key and h.demo_key.startswith('showcase-'))
     if current_user.is_authenticated:
-        d['admitted']=admitted(h); d['organizer']=organizer(h.id); d['jury']=event_role(h.id,'jury'); t=member_team(h.id); d['team_id']=t.id if t else None
+        d['mentor']=current_user.role=='mentor' and Team.query.filter_by(hackathon_id=h.id,mentor_id=current_user.id).first() is not None; d['admitted']=admitted(h); d['organizer']=organizer(h.id); d['jury']=event_role(h.id,'jury'); t=member_team(h.id); d['team_id']=t.id if t else None
     if full: d['rules']=h.rules
     return d
 
@@ -194,7 +198,11 @@ def reset():
     get(User,r.user_id).password_hash=generate_password_hash(password); r.used=True; commit(); return jsonify(ok=True)
 
 @api.get('/hackathons')
-def hackathons(): return jsonify(items=[h_data(h) for h in Hackathon.query.order_by(Hackathon.start_at.desc()) if h.approval=='approved' or (current_user.is_authenticated and organizer(h.id))])
+def hackathons():
+    items=Hackathon.query.order_by(Hackathon.start_at.desc())
+    if current_user.is_authenticated and current_user.role=='mentor':
+        items=items.filter(Hackathon.id.in_(db.select(Team.hackathon_id).where(Team.mentor_id==current_user.id)))
+    return jsonify(items=[h_data(h) for h in items if h.approval=='approved' or (current_user.is_authenticated and organizer(h.id))])
 
 @api.get('/hackathons/<int:hid>')
 @login_required
@@ -215,6 +223,8 @@ def create_hackathon():
     if not h.registration_deadline<=h.team_deadline<=h.submission_deadline: abort(400,'Проверьте сроки регистрации, команд и сдачи.')
     db.session.add(h); db.session.flush(); db.session.add(EventRole(user_id=current_user.id,hackathon_id=h.id,role='organizer'))
     for title,maximum in [('Функциональность',30),('Оригинальность',20),('Техническая реализация',20),('Дизайн и удобство',15),('Презентация и защита',15)]: db.session.add(Criterion(hackathon_id=h.id,title=title,maximum=maximum))
+    from .learning_seed_v1 import populate_learning
+    populate_learning(db.session.connection(),h.id)
     audit('hackathon.create',{'id':h.id}); commit(); return jsonify(hackathon=h_data(h,True)),201
 
 @api.patch('/hackathons/<int:hid>')
@@ -251,7 +261,9 @@ def admissions(hid):
 @api.get('/hackathons/<int:hid>/teams')
 @login_required
 def teams(hid):
-    require_admission(get(Hackathon,hid)); return jsonify(items=[team_data(t) for t in Team.query.filter_by(hackathon_id=hid)])
+    require_admission(get(Hackathon,hid)); query=Team.query.filter_by(hackathon_id=hid)
+    if current_user.role=='mentor': query=query.filter_by(mentor_id=current_user.id)
+    return jsonify(items=[team_data(t) for t in query])
 
 @api.get('/hackathons/<int:hid>/city')
 @login_required
@@ -392,7 +404,7 @@ def messages(tid):
     if channel not in ['team','organizer']: abort(400,'Неизвестный канал.')
     if channel=='organizer':
         if current_user.id!=t.captain_id and not organizer(t.hackathon_id): abort(403,'Переписка доступна только капитану и организатору.')
-    else: team_access(t,True)
+    else: team_access(t,request.method=='POST')
     if request.method=='POST':
         message=Message(team_id=tid,author_id=current_user.id,channel=channel,text=text(body(),'text',4000)); db.session.add(message)
         if channel=='team': notify_team(t,'Новое сообщение',current_user.nickname,exclude=current_user.id)
@@ -416,7 +428,7 @@ def messages_read(tid):
 @login_required
 def materials(hid):
     require_admission(get(Hackathon,hid)); done={p.material_id for p in LearningProgress.query.filter_by(user_id=current_user.id)}
-    return jsonify(items=[dict(serialize(m,'id title topic kind description url'),completed=m.id in done) for m in Material.query.filter_by(hackathon_id=hid)])
+    return jsonify(items=[dict(serialize(m,'id title topic kind description url language'),completed=m.id in done) for m in Material.query.filter_by(hackathon_id=hid)])
 
 @api.post('/materials/<int:mid>/complete')
 @login_required
@@ -438,7 +450,13 @@ def create_content(hid,kind):
     if kind=='cases':
         obj=Case(hackathon_id=hid,title=text(d,'title',200),company=text(d,'company',150),description=text(d,'description'),requirements=text(d,'requirements',10000,False),expected=text(d,'expected',5000,False),url=safe_url(text(d,'url',500,False)))
     elif kind=='materials':
-        obj=Material(hackathon_id=hid,title=text(d,'title',200),topic=text(d,'topic',100,False) or 'Разработка',description=text(d,'description',5000,False),kind=text(d,'kind',40,False) or 'document',url=safe_url(text(d,'url',500)))
+        from .learning_seed_v1 import MATERIAL_KINDS
+        material_kind=d.get('kind','document')
+        if material_kind not in MATERIAL_KINDS: abort(400,'Выберите формат из образовательного трека.')
+        if d.get('language','ru')!='ru': abort(400,'Публикуйте русскоязычные учебные материалы.')
+        material_url=safe_url(text(d,'url',500,material_kind!='assignment'))
+        if not material_url and not d.get('description','').strip(): abort(400,'Добавьте условие задания.')
+        obj=Material(hackathon_id=hid,title=text(d,'title',200),topic=text(d,'topic',100,False) or 'Разработка',description=text(d,'description',5000,False),kind=material_kind,url=material_url,language='ru')
     elif kind=='schedule':
         obj=Schedule(hackathon_id=hid,title=text(d,'title',200),description=text(d,'description',5000,False),starts_at=date(d.get('starts_at')),speaker=text(d,'speaker',200,False),url=safe_url(text(d,'url',500,False)),kind=text(d,'kind',40,False) or 'webinar')
     elif kind=='announcements':
@@ -481,10 +499,11 @@ def upload(tid):
 @login_required
 def download(uid):
     f=get(Upload,uid); t=get(Team,f.team_id)
+    if current_user.role=='mentor': team_access(t)
     assigned=ConsultationAssignment.query.filter_by(team_id=t.id,user_id=current_user.id).first()
     s=Submission.query.filter_by(team_id=t.id).first()
     expert=bool(s and ReviewAssignment.query.filter_by(submission_id=s.id,user_id=current_user.id,kind='expert').first())
-    if not assigned and not expert: team_access(t)
+    if not assigned and not expert and not assigned_mentor(t): team_access(t)
     return send_from_directory(current_app.config['UPLOAD_FOLDER'],f.storage_name,as_attachment=True,download_name=f.filename)
 
 @api.post('/teams/<int:tid>/audit')
@@ -554,7 +573,8 @@ def assign(sid):
     if kind not in ['jury','expert']: abort(400,'Некорректная роль.')
     if member_team(hid,uid): abort(403,'Конфликт интересов: участник этого хакатона.')
     if kind=='jury' and not EventRole.query.filter_by(user_id=uid,hackathon_id=hid,role='jury').first(): abort(403,'Пользователь не принял приглашение жюри.')
-    if kind=='jury' and (ConsultationAssignment.query.filter_by(team_id=s.team_id,user_id=uid).first() or ReviewAssignment.query.filter_by(user_id=uid,submission_id=sid,kind='expert').first()): abort(403,'Эксперт, знающий авторов, не может анонимно оценивать их проект.')
+    prior_mentor=AuditLog.query.filter(AuditLog.action=='mentor.assign',AuditLog.detail['team'].as_integer()==s.team_id,AuditLog.detail['mentor'].as_integer()==uid).first()
+    if kind=='jury' and (get(Team,s.team_id).mentor_id==uid or prior_mentor or ConsultationAssignment.query.filter_by(team_id=s.team_id,user_id=uid).first() or ReviewAssignment.query.filter_by(user_id=uid,submission_id=sid,kind='expert').first()): abort(403,'Эксперт, знающий авторов, не может анонимно оценивать их проект.')
     if kind=='expert' and ReviewAssignment.query.filter_by(user_id=uid,submission_id=sid,kind='jury').first(): abort(403,'Жюри уже назначено на анонимное оценивание.')
     db.session.add(ReviewAssignment(user_id=uid,submission_id=sid,kind=kind)); notify(uid,'Вам назначен проект для проверки',s.code); audit('review.assign',{'id':sid,'user':uid,'kind':kind}); commit(); return jsonify(ok=True)
 
@@ -637,10 +657,12 @@ def experts(hid):
 @api.route('/submissions/<int:sid>/feedback',methods=['GET','POST'])
 @login_required
 def feedback(sid):
-    s=get(Submission,sid); t=get(Team,s.team_id); expert=ReviewAssignment.query.filter_by(submission_id=sid,user_id=current_user.id,kind='expert').first()
+    s=get(Submission,sid); t=get(Team,s.team_id);
+    if current_user.role=='mentor': team_access(t)
+    expert=ReviewAssignment.query.filter_by(submission_id=sid,user_id=current_user.id,kind='expert').first()
     if not expert: team_access(t)
     if request.method=='POST':
-        if not expert and not organizer(t.hackathon_id): abort(403,'Вы не назначены экспертом.')
+        if not expert and not assigned_mentor(t) and not organizer(t.hackathon_id): abort(403,'Вы не назначены экспертом.')
         db.session.add(ExpertComment(submission_id=sid,author_id=current_user.id,text=text(body(),'text',5000))); notify_team(t,'Новая экспертная обратная связь'); commit()
     return jsonify(items=[dict(serialize(c,'id text created_at'),author=get(User,c.author_id).nickname) for c in ExpertComment.query.filter_by(submission_id=sid)])
 
@@ -768,6 +790,10 @@ def edit_profile():
     if 'nickname' in d: current_user.nickname=text(d,'nickname',64)
     if 'github' in d: current_user.github=safe_url(text(d,'github',300,False))
     if 'telegram' in d: current_user.telegram=text(d,'telegram',100,False)
+    if 'mentor_bio' in d or 'mentor_skills' in d:
+        if current_user.role!='mentor': abort(403,'Поля доступны только ментору.')
+        if 'mentor_bio' in d: current_user.mentor_bio=text(d,'mentor_bio',3000,False)
+        if 'mentor_skills' in d: current_user.mentor_skills=text(d,'mentor_skills',300,False)
     if 'theme' in d:
         if d['theme'] not in ['yellow','purple','holiday']: abort(400,'Неизвестная тема.')
         current_user.theme=d['theme']
@@ -810,7 +836,10 @@ def admin_update(uid):
     if u.is_owner: abort(403,'Права главного администратора изменяются только передачей владения.')
     if u.id==current_user.id: abort(403,'Изменение собственных административных прав запрещено.')
     if 'role' in d:
-        if d['role'] not in ['participant','organizer','admin','jury']: abort(400,'Неизвестная роль.')
+        if d['role'] not in ['participant','organizer','admin','jury','mentor']: abort(400,'Неизвестная роль.')
+        if d['role']=='mentor' and Membership.query.join(Hackathon,Membership.hackathon_id==Hackathon.id).filter(Membership.user_id==uid,Hackathon.status!='completed').first(): abort(409,'Сначала завершите участие пользователя в активных командах.')
+        if u.role=='mentor' and d['role']!='mentor':
+            Team.query.filter_by(mentor_id=uid).update({'mentor_id':None})
         u.role=d['role']
         if d['role']!='organizer': EventRole.query.filter_by(user_id=uid,role='organizer').delete()
         if d['role'] not in ['participant','jury']: EventRole.query.filter_by(user_id=uid,role='jury').delete()
@@ -851,13 +880,15 @@ def roadmap(hid):
 @api.route('/teams/<int:tid>/consultation',methods=['GET','POST'])
 @login_required
 def consultation(tid):
-    t=get(Team,tid); assignment=ConsultationAssignment.query.filter_by(team_id=tid,user_id=current_user.id).first()
+    t=get(Team,tid)
+    if current_user.role=='mentor': team_access(t)
+    assignment=ConsultationAssignment.query.filter_by(team_id=tid,user_id=current_user.id).first()
     if not assignment: team_access(t)
     if request.method=='POST':
-        if not assignment and not organizer(t.hackathon_id): abort(403,'Вы не назначены экспертом этой команды.')
+        if not assignment and not assigned_mentor(t) and not organizer(t.hackathon_id): abort(403,'Вы не назначены экспертом этой команды.')
         db.session.add(ConsultationComment(team_id=tid,author_id=current_user.id,text=text(body(),'text',5000)))
         notify_team(t,'Новые рекомендации эксперта'); activity('expert.feedback'); commit()
-    return jsonify(team={'id':t.id,'name':t.name,'case_id':t.case_id},experts=[{'id':r.user_id,'nickname':get(User,r.user_id).nickname} for r in ConsultationAssignment.query.filter_by(team_id=tid)],items=[dict(serialize(m,'id text created_at'),author=get(User,m.author_id).nickname,avatar=get(User,m.author_id).avatar) for m in ConsultationComment.query.filter_by(team_id=tid)])
+    return jsonify(team={'id':t.id,'name':t.name,'case_id':t.case_id},experts=[{'id':r.user_id,'nickname':get(User,r.user_id).nickname} for r in ConsultationAssignment.query.filter_by(team_id=tid)]+([{'id':t.mentor_id,'nickname':mentor_data(get(User,t.mentor_id))['nickname']}] if t.mentor_id and mentor_data(get(User,t.mentor_id)) else []),items=[dict(serialize(m,'id text created_at'),author=get(User,m.author_id).nickname,avatar=get(User,m.author_id).avatar) for m in ConsultationComment.query.filter_by(team_id=tid)])
 
 @api.post('/teams/<int:tid>/consultation/assign')
 @login_required

@@ -46,6 +46,8 @@ def create_app(config=None):
     app.register_blueprint(api,url_prefix='/api')
     from .certificate_api import certificates_api
     app.register_blueprint(certificates_api,url_prefix='/api')
+    from .mentors import mentors_api
+    app.register_blueprint(mentors_api,url_prefix='/api')
     register_commands(app)
 
     @login.user_loader

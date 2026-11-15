@@ -430,3 +430,6 @@ main{padding-bottom:32px}
 .overview-learning .section-title{justify-content:flex-start}
 
 .case-card>.section-title{justify-content:flex-end}
+
+/* Mentor workspace and Russian learning catalogue. */
+.mentor-selection{margin-top:24px}.mentor-selection h3{display:flex;align-items:center;gap:8px}.mentor-catalog{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:16px;margin-top:20px}.mentor-card{border:1px solid var(--line,#ddd);border-radius:14px;padding:18px;min-width:0}.mentor-card p,.mentor-summary p{overflow-wrap:anywhere}.mentor-photo{width:48px;height:48px;border-radius:50%;object-fit:cover}.learning-filters{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:16px;margin:24px 0}.material-source{display:block;margin-top:12px;overflow-wrap:anywhere}.mentor-summary strong{font-size:18px}.material-card .badge{white-space:normal}.material-actions{flex-wrap:wrap}@media(max-width:600px){.learning-filters{grid-template-columns:1fr}.mentor-selection .section-title{align-items:flex-start;flex-wrap:wrap;gap:12px}.mentor-card .button{width:100%}.mentor-selection h3{font-size:18px}}
