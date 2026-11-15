@@ -8,7 +8,7 @@ export const flakes = Array.from({ length: 40 }, (_, i) => {
     size: `${i % 5 === 0 ? 11 + i % 4 : 2 + i % 4}px`,
     duration: `${duration}s`,
     delay: `${-((i * 11.37 + 4) % duration)}s`,
-    opacity: (0.16 + (i % 6) * 0.045).toFixed(2),
+    opacity: (0.24 + (i % 6) * 0.045).toFixed(2),
     drift: `${(i % 2 ? -1 : 1) * (18 + i % 53)}px`,
     sway: `${3 + i % 9}px`,
     swayTime: `${3 + i % 5}s`,
@@ -29,7 +29,7 @@ export default function Snowfall({ enabled = false }) {
       '--flake-sway': flake.sway,
       '--sway-time': flake.swayTime,
     }}><span className={'winter-particle ' + (flake.crystal ? 'crystal' : 'powder')}>
-      {flake.crystal && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" aria-hidden="true">
+      {flake.crystal && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
         <path d="M12 2v20M3.34 7l17.32 10M3.34 17L20.66 7M9 5l3 3 3-3M9 19l3-3 3 3M4.5 10.5l4.1-1.1-1.1-4.1M19.5 13.5l-4.1 1.1 1.1 4.1M7.5 18.7l1.1-4.1-4.1-1.1M16.5 5.3l-1.1 4.1 4.1 1.1"/>
       </svg>}
     </span></span>)}
