@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import pytest
+from alembic.script import ScriptDirectory
 from sqlalchemy.exc import IntegrityError
 
 @pytest.fixture()
@@ -27,7 +28,9 @@ def test_fresh_sqlite_migrations_seed_and_restart(launcher):
     with app.app_context():
         assert db.engine.dialect.name=='sqlite'
         assert db.session.execute(db.text('PRAGMA foreign_keys')).scalar()==1
-        assert db.session.execute(db.text('select version_num from alembic_version')).scalar()=='a15_award_certificates'
+        heads=ScriptDirectory(str(launcher.ROOT/'backend/migrations')).get_heads()
+        assert len(heads)==1
+        assert db.session.execute(db.text('select version_num from alembic_version')).scalars().all()==heads
         count=Hackathon.query.count();users=User.query.count()
         assert count>0 and users>=5
         assert User.query.filter_by(email='admin@hackflow.test').one().is_owner
