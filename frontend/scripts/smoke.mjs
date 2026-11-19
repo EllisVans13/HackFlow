@@ -62,7 +62,7 @@ try{
   console.log('OK staff navigation hidden, archive available to mentors, public archive and places');
   const assignCalls=[];let refreshed=0,flashed=0;
   await components.assignProjectReviews({hid:42,api:async(...args)=>{assignCalls.push(args);return {hackathon:{status:'review'}}},refresh:()=>refreshed++,flash:()=>flashed++});
-  if(JSON.stringify(assignCalls)!==JSON.stringify([['/hackathons/42','PATCH',{status:'review'}]])||refreshed!==1||flashed!==1)throw Error('Organizer assignment must use the live hackathon transition API');
+  if(JSON.stringify(assignCalls)!==JSON.stringify([['/hackathons/42/review-assignments','POST',{}]])||refreshed!==1||flashed!==1)throw Error('Organizer assignment must use the dedicated assignment API');
   let errorRefresh=0;
   try{await components.assignProjectReviews({hid:42,api:async()=>{throw Error('Подготовьте PDF')},refresh:()=>errorRefresh++,flash:()=>errorRefresh++});throw Error('Expected rejection')}catch(e){if(e.message!=='Подготовьте PDF')throw e;}
   if(errorRefresh)throw Error('Failed assignment must not show success');

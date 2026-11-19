@@ -215,7 +215,7 @@ def test_peer_review_self_assignment_and_official_rating_independent(client,app)
     sid=submit(client); prepare(client,sid)
     login(client,'participant'); assert client.post('/api/hackathons/1/teams',json={'name':'Рецензенты'}).status_code==201
     login(client,'organizer')
-    assert client.post('/api/hackathons/1/peer',json={'team_id':2,'submission_id':sid}).status_code==404
+    assert client.post('/api/hackathons/1/peer',json={'team_id':2,'submission_id':sid}).status_code==409
     # A historical assignment remains usable without the removed management API.
     with app.app_context():
         db.session.add(PeerAssignment(team_id=2,submission_id=sid));db.session.commit()
