@@ -150,7 +150,7 @@ def test_distribution_is_idempotent_and_self_review_forbidden(client,app,scenari
 
 def test_cross_event_assignments_and_demo_staff_cannot_see_real_projects(client,scenario):
     demo_login(client,'organizer')
-    assert client.post(f"/api/hackathons/{scenario['id']}/peer",json={'team_id':1,'submission_id':scenario['submissions'][0]}).status_code==404
+    assert client.post(f"/api/hackathons/{scenario['id']}/peer",json={'team_id':1,'submission_id':scenario['submissions'][0]}).status_code==400
     demo_login(client,'admin')
     users=client.get('/api/admin/users').json['items'];expert=next(u for u in users if u['role']=='expert')
     login(client,'organizer')
@@ -173,7 +173,7 @@ def test_automatic_distribution_needs_four_projects(client,app,scenario,monkeypa
     with app.app_context():
         s=db.session.get(Submission,scenario['submissions'][0])
         reviewer=Team.query.filter(Team.hackathon_id==scenario['id'],Team.id!=s.team_id).first().id
-    assert client.post(f"/api/hackathons/{scenario['id']}/peer",json={'team_id':reviewer,'submission_id':scenario['submissions'][0]}).status_code==404
+    assert client.post(f"/api/hackathons/{scenario['id']}/peer",json={'team_id':reviewer,'submission_id':scenario['submissions'][0]}).status_code==200
 
 
 def test_all_public_demo_logins_are_documented_and_work(client,scenario):
@@ -193,7 +193,7 @@ def test_online_meeting_requires_join_url_and_closed_peer_rejects_assignments(cl
     demo_login(client,'organizer')
     with app.app_context():
         h=db.session.get(Hackathon,scenario['id']);h.peer_published=True;db.session.commit()
-    assert client.post(f"/api/hackathons/{scenario['id']}/peer",json={'team_id':1,'submission_id':scenario['submissions'][0]}).status_code==404
+    assert client.post(f"/api/hackathons/{scenario['id']}/peer",json={'team_id':1,'submission_id':scenario['submissions'][0]}).status_code==409
 
 
 
@@ -211,10 +211,11 @@ def test_peer_review_denies_all_staff_roles_and_event_staff(client,app,scenario)
         assert client.get(f'/api/hackathons/{hid}/peer').status_code==403
         assert client.get(f'/api/peer/{sid}/material').status_code==403
         assert client.post(f'/api/peer/{sid}',json={'scores':scenario['criteria'],'comment':'Denied'}).status_code==403
-        assert client.post(f'/api/hackathons/{hid}/peer',json={}).status_code in (403,404,405)
-        for suffix in ['distribute','progress','publish']:
-            assert client.get(f'/api/hackathons/{hid}/peer/{suffix}').status_code in (403,404,405)
-            assert client.post(f'/api/hackathons/{hid}/peer/{suffix}',json={}).status_code in (403,404,405)
+        manager=name in ['admin','organizer']
+        assert client.post(f'/api/hackathons/{hid}/peer',json={}).status_code==(200 if manager else 403)
+        assert client.post(f'/api/hackathons/{hid}/review-assignments',json={}).status_code==(200 if manager else 403)
+        assert client.post(f'/api/hackathons/{hid}/peer/distribute',json={}).status_code==(200 if manager else 403)
+        assert client.post(f'/api/hackathons/{hid}/peer/publish',json={}).status_code==(409 if manager else 403)
     user=demo_login(client,'captain')
     with app.app_context():
         db.session.add(EventRole(user_id=user['id'],hackathon_id=hid,role='jury'));db.session.commit()
@@ -265,7 +266,7 @@ def test_organizer_assignment_action_uses_live_route_and_preserves_reviews(clien
         PeerAssignment.query.filter(PeerAssignment.submission_id.in_(scenario['submissions'])).delete(synchronize_session=False)
         h=db.session.get(Hackathon,hid);h.status='active';db.session.commit()
     demo_login(client,'organizer')
-    response=client.patch(f'/api/hackathons/{hid}',json={'status':'review'})
+    response=client.post(f'/api/hackathons/{hid}/review-assignments',json={})
     assert response.status_code==200,response.json
     demo_login(client,'captain')
     assignments=client.get(f'/api/hackathons/{hid}/peer').json['items']
@@ -273,7 +274,7 @@ def test_organizer_assignment_action_uses_live_route_and_preserves_reviews(clien
     assert client.get(assignments[0]['material_url']).status_code==200
     assert client.post(f"/api/peer/{assignments[0]['id']}",json={'scores':scenario['criteria'],'comment':'Проверено командой'}).status_code==201
     demo_login(client,'organizer')
-    assert client.patch(f'/api/hackathons/{hid}',json={'status':'review'}).status_code==200
+    assert client.post(f'/api/hackathons/{hid}/review-assignments',json={}).status_code==200
     assert client.get(f'/api/hackathons/{hid}/peer').status_code==403
     assert client.post(f"/api/peer/{assignments[0]['id']}",json={}).status_code==403
     with app.app_context():
@@ -289,14 +290,56 @@ def test_organizer_assignment_action_reports_missing_materials_and_closed_stage(
         h=db.session.get(Hackathon,hid);h.status='active'
         db.session.get(Submission,scenario['submissions'][0]).anonymous_file_id=None;db.session.commit()
     demo_login(client,'captain')
-    assert client.patch(f'/api/hackathons/{hid}',json={'status':'review'}).status_code==403
+    assert client.post(f'/api/hackathons/{hid}/review-assignments',json={}).status_code==403
     demo_login(client,'organizer')
-    response=client.patch(f'/api/hackathons/{hid}',json={'status':'review'})
+    response=client.post(f'/api/hackathons/{hid}/review-assignments',json={})
     assert response.status_code==409 and 'PDF' in response.json['error']
     with app.app_context():
         assert db.session.get(Hackathon,hid).status=='active'
         assert PeerAssignment.query.filter(PeerAssignment.submission_id.in_(scenario['submissions'])).count()==0
         h=db.session.get(Hackathon,hid);h.results_published=True;h.status='completed';db.session.commit()
-    response=client.patch(f'/api/hackathons/{hid}',json={'status':'review'})
+    response=client.post(f'/api/hackathons/{hid}/review-assignments',json={})
     assert response.status_code==409 and 'закрыт' in response.json['error']
     with app.app_context():assert db.session.get(Hackathon,hid).status=='completed'
+
+
+def test_old_open_tab_assignment_and_publication_routes_work(client,app,scenario):
+    hid=scenario['id'];sid=scenario['submissions'][0]
+    with app.app_context():
+        PeerAssignment.query.filter(PeerAssignment.submission_id.in_(scenario['submissions'])).delete(synchronize_session=False)
+        reviewer=Team.query.filter(Team.hackathon_id==hid,Team.id!=db.session.get(Submission,sid).team_id).first().id
+        db.session.get(Hackathon,hid).status='active';db.session.commit()
+    demo_login(client,'organizer')
+    data={'team_id':reviewer,'submission_id':sid}
+    result=client.post(f'/api/hackathons/{hid}/peer',json=data)
+    assert result.status_code==200,result.json
+    assert result.json['added']==12
+    assert client.post(f'/api/hackathons/{hid}/peer',json=data).json['added']==0
+    assert client.post(f'/api/hackathons/{hid}/peer/distribute',json={}).json['added']==0
+    with app.app_context():
+        assert PeerAssignment.query.filter_by(team_id=reviewer,submission_id=sid).count()==1
+        assert PeerAssignment.query.filter(PeerAssignment.submission_id.in_(scenario['submissions'])).count()==12
+    assert client.post(f'/api/hackathons/{hid}/peer/publish',json={}).status_code==409
+    for name in ['captain','review2','review3','review4']:
+        demo_login(client,name)
+        assignments=client.get(f'/api/hackathons/{hid}/peer').json['items']
+        for work in assignments:
+            assert client.post(f"/api/peer/{work['id']}",json={'scores':{k:v*.8 for k,v in scenario['criteria'].items()},'comment':'Проверено по критериям'}).status_code==201
+    demo_login(client,'organizer')
+    result=client.post(f'/api/hackathons/{hid}/peer/publish',json={})
+    assert result.status_code==200,result.json
+    assert result.json['items'][0]['score']==88
+
+
+def test_legacy_preference_invalid_request_rolls_back_and_no_self_assignment(client,app,scenario):
+    hid=scenario['id'];sid=scenario['submissions'][0]
+    with app.app_context():
+        PeerAssignment.query.filter(PeerAssignment.submission_id.in_(scenario['submissions'])).delete(synchronize_session=False)
+        own=db.session.get(Submission,sid).team_id
+        other=Team.query.filter(Team.hackathon_id==hid,Team.id!=own).first().id
+        db.session.get(Submission,sid).anonymous_file_id=None;db.session.commit()
+    demo_login(client,'organizer')
+    assert client.post(f'/api/hackathons/{hid}/peer',json={'team_id':own,'submission_id':sid}).status_code==400
+    response=client.post(f'/api/hackathons/{hid}/peer',json={'team_id':other,'submission_id':sid})
+    assert response.status_code==409 and 'PDF' in response.json['error']
+    with app.app_context():assert PeerAssignment.query.filter(PeerAssignment.submission_id.in_(scenario['submissions'])).count()==0
