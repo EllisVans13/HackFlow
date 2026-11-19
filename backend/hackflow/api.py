@@ -18,7 +18,7 @@ from sqlalchemy import func
 from . import limiter
 from .models import *
 from .mentoring import assigned_mentor, mentor_data
-from .peer_assessment import peer_summary
+from .peer_assessment import peer_summary,required_reviewers
 from .plagiarism import ensure_analysis,report_payload
 from .services import digest, safe_url, audit_submission, github_repo, ranking, publish_results, run_codecheck, source_archive
 
@@ -769,7 +769,7 @@ def peer(hid):
         for sid,avg in db.session.query(PeerReview.submission_id,func.avg(PeerReview.total)).join(Submission,PeerReview.submission_id==Submission.id).join(Team,Submission.team_id==Team.id).filter(Team.hackathon_id==hid).group_by(PeerReview.submission_id).all(): votes.append({'code':get(Submission,sid).code,'score':round(avg,2)})
         votes.sort(key=lambda v:-v['score'])
     own=Submission.query.filter_by(team_id=t.id).first() if t else None
-    return jsonify(items=rows,published=h.peer_published,results=votes,weighted=h.peer_enabled,required=3,can_review=bool(t and t.captain_id==current_user.id),own_progress=peer_summary(own)['received'] if own else 0)
+    return jsonify(items=rows,published=h.peer_published,results=votes,weighted=h.peer_enabled,required=required_reviewers(hid),can_review=bool(t and t.captain_id==current_user.id),own_progress=peer_summary(own)['received'] if own else 0)
 
 @api.post('/peer/<int:sid>')
 @login_required

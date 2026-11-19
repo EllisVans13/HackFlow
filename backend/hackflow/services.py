@@ -118,7 +118,7 @@ def ranking(h):
         combined={}
         for c in criteria:
             j=sum(float(r.scores.get(str(c.id),0)) for r in scores)/len(scores)
-            p=sum(float(r.scores.get(str(c.id),0)) for r in peer['reviews'])/3 if peer['complete'] else 0
+            p=sum(float(r.scores.get(str(c.id),0)) for r in peer['reviews'])/peer['required'] if peer['complete'] else 0
             combined[str(c.id)]=round(.8*j+.2*p,2) if h.peer_enabled else round(j,2)
         rows.append({'submission_id':s.id,'team_id':team.id,'team':team.name,'title':s.title,'code':s.code,
                      'score':round(total,2) if total is not None else None,

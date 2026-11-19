@@ -93,6 +93,8 @@ try{
   if(!closedButton.includes('Назначить Peer Review')||!closedButton.includes('disabled=""')||!closedButton.includes('Новые назначения недоступны'))throw Error('Closed event must explain the disabled visible action');
   for(const role of ['participant','jury','mentor','expert'])if(renderToString(React.createElement(components.PeerAssignmentButton,{c:{h:{organizer:false},user:{role}},submission:assignSubs[0]})))throw Error('Non-organizer gained assignment button');
   console.log('OK visible Peer Review management for legacy/new events, reviewer form, selected-pair API and closed-event explanation');
+  if(source.includes('минимум четыре')||!source.includes('2 команды — по 1 работе, 3 — по 2'))throw Error('Organizer UI still requires four projects');
+
 
 
   for(const role of ['admin','organizer','jury','mentor','participant']){
