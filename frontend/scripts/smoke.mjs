@@ -8,7 +8,7 @@ const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
 const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace','CodeReportView'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm,canPeerReview,assignProjectReviews,ReviewAssignmentControl,PeerAssignmentButton,openPeerAssignment,reviewCandidates};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm,canPeerReview,assignProjectReviews,ReviewAssignmentControl,PeerAssignmentButton,openPeerAssignment,reviewCandidates};\nexport {reviewAction} from './PeerReview.jsx';`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
@@ -125,6 +125,16 @@ try{
   for(const text of ['Длительность','Дата и время','https://telemost.yandex.ru/','https://zoom.us/','Ссылка подключения','автоматически не создаёт'])if(!meetingHtml.includes(text))throw Error('Meeting setup field/help missing: '+text);
   if(components.resolvePage('team',{role:'expert'})!=='expert')throw Error('Expert must have dedicated workspace');
   console.log('OK anonymous peer PDFs, meeting provider/date/duration fields and expert route');
+  for(const state of [{can_review:false,published:false,reviewed:false,reason:'текущий капитан'},{can_review:true,published:true,reviewed:false,reason:'результаты опубликованы'},{can_review:true,published:false,reviewed:true,reason:'уже оценила'}]){
+    const html=renderToString(React.createElement(components.PeerCards,{data:{items:[{id:22,code:'ANON',text:'Текст',reviewed:state.reviewed}],can_review:state.can_review,published:state.published},c:context,onGrade:()=>{}}));
+    if(!html.includes('disabled=""')||!html.includes(state.reason))throw Error('Unavailable Peer Review must explain its state');
+  }
+  const action=components.reviewAction({reviewed:false},{can_review:true,published:false},context);
+  if(action.disabled||action.label!=='Оценить проект')throw Error('Captain lost active grading action');
+  const peerSource=await readFile(new URL('../src/PeerReview.jsx',import.meta.url),'utf8');
+  for(const marker of ["window.addEventListener('focus',refreshVisible)","document.addEventListener('visibilitychange',refreshVisible)",'clearInterval(timer)'])if(!peerSource.includes(marker))throw Error('Peer Review permissions must refresh when returning to a tab');
+  console.log('OK always-visible grading action, role/closed/reviewed explanations and tab refresh');
+
 
 
 
