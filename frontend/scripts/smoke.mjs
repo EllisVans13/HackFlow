@@ -8,7 +8,7 @@ const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
 const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace','CodeReportView'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm,canPeerReview,assignProjectReviews,ReviewAssignmentControl};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm,canPeerReview,assignProjectReviews,ReviewAssignmentControl,PeerAssignmentButton,openPeerAssignment,reviewCandidates};`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
@@ -68,11 +68,32 @@ try{
   if(errorRefresh)throw Error('Failed assignment must not show success');
   const assignmentHtml=renderToString(React.createElement(components.ReviewAssignmentControl,{c:{h:{organizer:true,peer_enabled:true,status:'active'},run:()=>{}}}));
   if(!assignmentHtml.includes('Назначить проекты командам'))throw Error('Organizer must have a working assignment control');
-  for(const state of [{organizer:false,peer_enabled:true},{organizer:true,peer_enabled:false}])if(renderToString(React.createElement(components.ReviewAssignmentControl,{c:{h:state}})))throw Error('Assignment control permission/legacy guard missing');
+  for(const state of [{organizer:false,peer_enabled:true}])if(renderToString(React.createElement(components.ReviewAssignmentControl,{c:{h:state}})))throw Error('Assignment control permission/legacy guard missing');
   const closedAssignment=renderToString(React.createElement(components.ReviewAssignmentControl,{c:{h:{organizer:true,peer_enabled:true,results_published:true}}}));
   if(closedAssignment.includes('<button'))throw Error('Published events must not offer assignments');
-  for(const obsolete of ["api(`/hackathons/${c.hid}/peer`,'POST'","api(`/hackathons/${c.hid}/peer/publish`",'Назначить Peer Review','Опубликовать «Выбор участников»'])if(source.includes(obsolete))throw Error('Organizer still uses a removed Peer Review action: '+obsolete);
+  for(const obsolete of ["api(`/hackathons/${c.hid}/peer`,'POST'","api(`/hackathons/${c.hid}/peer/publish`",'Опубликовать «Выбор участников»'])if(source.includes(obsolete))throw Error('Organizer still uses a removed Peer Review action: '+obsolete);
   console.log('OK organizer assignment request contract, errors, permissions and closed events');
+  for(const peer_enabled of [false,true]){
+    const management=renderToString(React.createElement(components.ReviewAssignmentControl,{c:{h:{organizer:true,peer_enabled,status:'active'}}}));
+    if(!management.includes('Peer Review — назначение командам')||!management.includes('Назначить проекты командам'))throw Error('Peer Review management hidden by legacy flag');
+  }
+  const assignTeams=[{id:1,name:'Своя',members:[]},{id:2,name:'Рецензенты',members:[{nickname:'Адель'}]},{id:3,name:'Не сдали',members:[]}];
+  const assignSubs=[{id:11,team_id:1},{id:22,team_id:2}];
+  const assignContext={hid:42,h:{organizer:true,peer_enabled:false},busy:false};
+  const assignButton=renderToString(React.createElement(components.PeerAssignmentButton,{c:assignContext,submission:assignSubs[0],teams:assignTeams,submissions:assignSubs}));
+  if(!assignButton.includes('Назначить Peer Review')||assignButton.includes('disabled=""'))throw Error('Legacy event must have an enabled per-project Peer Review action');
+  let assignmentForm;
+  components.openPeerAssignment({...assignContext,form:(...args)=>assignmentForm=args},assignSubs[0],assignTeams,assignSubs);
+  if(assignmentForm[0]!=='Назначить Peer Review'||assignmentForm[1][0].options.length!==1||!assignmentForm[1][0].options[0].label.includes('Адель'))throw Error('Reviewer selection must exclude own/unsubmitted teams and show nicknames');
+  const preferredCalls=[];
+  components.openPeerAssignment({...assignContext,form:(...args)=>assignmentForm=args,run:fn=>fn(),api:async(...args)=>preferredCalls.push(args),refresh:()=>{},flash:()=>{}},assignSubs[0],assignTeams,assignSubs);
+  await assignmentForm[2]({team_id:'2'});
+  if(JSON.stringify(preferredCalls)!==JSON.stringify([['/hackathons/42/review-assignments','POST',{team_id:2,submission_id:11}]]))throw Error('Selected reviewer/project not sent to backend');
+  const closedButton=renderToString(React.createElement(components.PeerAssignmentButton,{c:{...assignContext,h:{organizer:true,results_published:true}},submission:assignSubs[0],teams:assignTeams,submissions:assignSubs}));
+  if(!closedButton.includes('Назначить Peer Review')||!closedButton.includes('disabled=""')||!closedButton.includes('Новые назначения недоступны'))throw Error('Closed event must explain the disabled visible action');
+  for(const role of ['participant','jury','mentor','expert'])if(renderToString(React.createElement(components.PeerAssignmentButton,{c:{h:{organizer:false},user:{role}},submission:assignSubs[0]})))throw Error('Non-organizer gained assignment button');
+  console.log('OK visible Peer Review management for legacy/new events, reviewer form, selected-pair API and closed-event explanation');
+
 
   for(const role of ['admin','organizer','jury','mentor','participant']){
     if(components.resolvePage('results/22',{role})!=='results')throw Error('Embedded results route must work for '+role);
