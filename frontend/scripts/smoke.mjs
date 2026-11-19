@@ -8,7 +8,7 @@ const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
 const names=['Welcome','Auth','StaffHome','Snowfall','WinterGarland','HolidayHat','HolidayScene','ThemeSwitcher','MaterialCover','SidebarAccount','Avatar','Dashboard','DashboardView','AwardCertificates','Catalog','TeamPage','Cases','CaseCard','Board','BoardView','TeamCity','CityScene','CityBuilding','CityDetail','BoardEmpty','HackathonImage','Chat','Materials','SchedulePage','Roadmap','SubmissionPage','Organizer','Jury','Ranking','Peer','Appeals','Profile','SettingsPage','Notifications','Ratings','Admin','Expert','CodeCheck','CreateHackathon','MentorPicker','MentorWorkspace','CodeReportView'];
 const dir=await mkdtemp(join(tmpdir(),'hackflow-ui-'));
 try{
- const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm,canPeerReview};`;
+ const text=source.replace("import './style.css';",'').replace("createRoot(document.getElementById('root')).render(<Root/>);",'')+`\nexport {${names.join(',')},resolvePage,MaterialCards,showParticipantResults,ArchiveCards,ResultsTable,ResultsDetail,ResultsArchive,CertificateVerification,Root,PeerCards,MeetingForm,canPeerReview,assignProjectReviews,ReviewAssignmentControl};`;
  const transformed=await build({stdin:{contents:text,resolveDir:resolve('src'),loader:'jsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react-dom','react-dom/*','lucide-react']});
  // Put temporary module next to node_modules for correct React resolution.
  const modulePath=resolve('.smoke-components.mjs');
@@ -60,6 +60,20 @@ try{
   const resultsHtml=renderToString(React.createElement(components.ResultsTable,{data:{hackathon:{title:'Открытый итог'},items:[{place:1,team:'Первая команда',title:'Проект',score:91.5}],criteria:[{id:1,title:'Качество',maximum:100}],tie_rule:'Раньше сданный проект'}}));
   for(const text of ['Место','Первая команда','91,5','Баллы из 100'])if(!resultsHtml.includes(text))throw Error('Missing public ranking column: '+text);
   console.log('OK staff navigation hidden, archive available to mentors, public archive and places');
+  const assignCalls=[];let refreshed=0,flashed=0;
+  await components.assignProjectReviews({hid:42,api:async(...args)=>{assignCalls.push(args);return {hackathon:{status:'review'}}},refresh:()=>refreshed++,flash:()=>flashed++});
+  if(JSON.stringify(assignCalls)!==JSON.stringify([['/hackathons/42','PATCH',{status:'review'}]])||refreshed!==1||flashed!==1)throw Error('Organizer assignment must use the live hackathon transition API');
+  let errorRefresh=0;
+  try{await components.assignProjectReviews({hid:42,api:async()=>{throw Error('Подготовьте PDF')},refresh:()=>errorRefresh++,flash:()=>errorRefresh++});throw Error('Expected rejection')}catch(e){if(e.message!=='Подготовьте PDF')throw e;}
+  if(errorRefresh)throw Error('Failed assignment must not show success');
+  const assignmentHtml=renderToString(React.createElement(components.ReviewAssignmentControl,{c:{h:{organizer:true,peer_enabled:true,status:'active'},run:()=>{}}}));
+  if(!assignmentHtml.includes('Назначить проекты командам'))throw Error('Organizer must have a working assignment control');
+  for(const state of [{organizer:false,peer_enabled:true},{organizer:true,peer_enabled:false}])if(renderToString(React.createElement(components.ReviewAssignmentControl,{c:{h:state}})))throw Error('Assignment control permission/legacy guard missing');
+  const closedAssignment=renderToString(React.createElement(components.ReviewAssignmentControl,{c:{h:{organizer:true,peer_enabled:true,results_published:true}}}));
+  if(closedAssignment.includes('<button'))throw Error('Published events must not offer assignments');
+  for(const obsolete of ["api(`/hackathons/${c.hid}/peer`,'POST'","api(`/hackathons/${c.hid}/peer/publish`",'Назначить Peer Review','Опубликовать «Выбор участников»'])if(source.includes(obsolete))throw Error('Organizer still uses a removed Peer Review action: '+obsolete);
+  console.log('OK organizer assignment request contract, errors, permissions and closed events');
+
   for(const role of ['admin','organizer','jury','mentor','participant']){
     if(components.resolvePage('results/22',{role})!=='results')throw Error('Embedded results route must work for '+role);
   }
