@@ -163,11 +163,11 @@ def test_anonymous_file_cannot_change_after_scoring(client,scenario):
     assert client.patch(f'/api/submissions/{sid}/anonymous',json={'text':'Новая версия','confirmed':True}).status_code==409
 
 
-def test_automatic_distribution_needs_four_projects(client,app,scenario,monkeypatch):
+def test_automatic_distribution_needs_two_projects(client,app,scenario,monkeypatch):
     import hackflow.peer_assessment as module
     demo_login(client,'organizer')
     original=module.projects
-    monkeypatch.setattr(module,'projects',lambda hid:original(hid)[:3])
+    monkeypatch.setattr(module,'projects',lambda hid:original(hid)[:1])
     assert client.patch(f"/api/hackathons/{scenario['id']}",json={'status':'review'}).status_code==409
     monkeypatch.setattr(module,'projects',original)
     with app.app_context():

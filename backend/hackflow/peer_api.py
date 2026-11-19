@@ -5,7 +5,7 @@ from flask_login import current_user,login_required
 from .models import db,Hackathon,Submission,Team,Upload,PeerAssignment,PeerReview,JuryScore
 from .api import get,require_organizer,require_admission,member_team,audit,commit,require_jury_submission,require_participant,body,integer,notify_team,publish
 from .anonymous_files import sanitize_pdf
-from .peer_assessment import distribute
+from .peer_assessment import distribute,required_reviewers
 
 peer_api=Blueprint('peer_tools',__name__)
 
@@ -71,13 +71,13 @@ def assign_projects(hid):
         if team.id==target.team_id:abort(400,'Нельзя назначить команде собственный проект.')
         if not Submission.query.filter_by(team_id=team.id).first():abort(409,'Команда-рецензент должна сдать собственный проект.')
         if not PeerAssignment.query.filter_by(team_id=team.id,submission_id=target.id).first():
-            if PeerAssignment.query.filter_by(team_id=team.id).count()>=3 or PeerAssignment.query.filter_by(submission_id=target.id).count()>=3:abort(409,'Команде и проекту уже назначены три проверки.')
+            if PeerAssignment.query.filter_by(team_id=team.id).count()>=required_reviewers(hid) or PeerAssignment.query.filter_by(submission_id=target.id).count()>=required_reviewers(hid):abort(409,'Достигнут лимит доступных проверок для команды или проекта.')
             db.session.add(PeerAssignment(team_id=team.id,submission_id=target.id));db.session.flush();preferred_added=1
     added=distribute(h)+preferred_added
     if added:
         for team in Team.query.filter_by(hackathon_id=hid):notify_team(team,'Назначены проекты для Peer Review','Откройте Peer Review в пространстве хакатона.')
     audit('review.assignments',{'hackathon':hid,'added':added});commit()
-    return jsonify(ok=True,added=added,status=h.status)
+    return jsonify(ok=True,added=added,status=h.status,required=required_reviewers(hid))
 
 
 @peer_api.post('/hackathons/<int:hid>/peer/publish')
